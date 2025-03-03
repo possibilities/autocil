@@ -8,16 +8,31 @@ import os from 'os';
 const cwd = process.cwd();
 const packageJsonPath = path.join(cwd, 'package.json');
 
+// Function to check if docker-compose file exists
+function hasDockerComposeFile(): boolean {
+  const possibleFiles = [
+    'docker-compose.yml',
+    'docker-compose.yaml',
+    'docker-compose.json'
+  ];
+  
+  return possibleFiles.some(file => fs.existsSync(path.join(cwd, file)));
+}
+
 // Function to generate teamocil YAML content
 function generateTeamocilYaml(
   projectName: string, 
   hasDevScript: boolean, 
   hasTestsWatchScript: boolean, 
-  hasTypesWatchScript: boolean
+  hasTypesWatchScript: boolean,
+  hasDockerCompose: boolean
 ): string {
   let yamlContent = `# Teamocil configuration for ${projectName}
 name: ${projectName}
-windows:
+windows:`;
+
+  // Main development window
+  yamlContent += `
   - name: ${projectName}
     root: ${cwd}
     layout: main-vertical
@@ -43,7 +58,19 @@ windows:
   // Add dev pane
   yamlContent += `
       - commands:
-        - ${hasDevScript ? 'pnpm run dev' : 'echo "No dev script found"'}
+        - ${hasDevScript ? 'pnpm run dev' : 'echo "No dev script found"'}`;
+
+  // Add services tab for docker-compose if it exists
+  if (hasDockerCompose) {
+    yamlContent += `
+  - name: services
+    root: ${cwd}
+    panes:
+      - commands:
+        - docker compose down 2>&1 | tee docker-output.log ; docker compose up --build 2>&1 | tee -a docker-output.log`;
+  }
+
+  yamlContent += `
 `;
 
   return yamlContent;
@@ -105,11 +132,16 @@ function main() {
       hasTestsWatchScript, 
       hasTypesWatchScript 
     } = getProjectInfo();
+    
+    // Check for docker-compose file
+    const hasDockerCompose = hasDockerComposeFile();
+    
     const teamocilYaml = generateTeamocilYaml(
       projectName, 
       hasDevScript, 
       hasTestsWatchScript, 
-      hasTypesWatchScript
+      hasTypesWatchScript,
+      hasDockerCompose
     );
     
     // Generate a timestamp-based random filename
