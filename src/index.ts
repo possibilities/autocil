@@ -29,16 +29,17 @@ windows:`
 
   yamlContent += `
   - name: code
+    focus: true
     root: ${cwd}
     layout: main-vertical
     panes:
       - commands:
-        - vim
-        focus: true`
+        - vim`
 
   if (hasTestsWatchScript) {
     yamlContent += `
       - commands:
+        - sleep 2
         - pnpm run test:watch`
   }
 
@@ -53,6 +54,12 @@ windows:`
       - commands:
         - pnpm run dev`
   }
+
+  yamlContent += `
+      - commands:
+        - sleep 1
+        - tree --gitignore
+        focus: true`
 
   if (hasDockerCompose) {
     yamlContent += `
