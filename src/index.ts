@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
+import { execSync, spawnSync } from 'child_process'
 
 const cwd = process.cwd()
 const packageJsonPath = path.join(cwd, 'package.json')
@@ -107,8 +108,70 @@ function getProjectInfo(): {
   }
 }
 
+function isInsideTmux(): boolean {
+  return !!process.env.TMUX
+}
+
+function isTeamocilInstalled(): boolean {
+  try {
+    execSync('which teamocil', { stdio: 'ignore' })
+    return true
+  } catch (error) {
+    return false
+  }
+}
+
+function executeTmuxCommand(projectName: string, tempFilePath: string): void {
+  try {
+    // Kill any existing session with the same name
+    try {
+      execSync(`tmux kill-session -t ${projectName}`, { stdio: 'ignore' })
+      console.info(`Killed existing tmux session: ${projectName}`)
+    } catch (error) {
+      // It's okay if the session doesn't exist yet
+    }
+
+    // Start a new session with teamocil
+    console.info(`Starting new tmux session: ${projectName}`)
+    console.info(`Using teamocil layout: ${tempFilePath}`)
+    
+    // Use spawn to create a detached process that won't block the parent
+    const result = spawnSync('tmux', ['new-session', '-d', `teamocil --layout ${tempFilePath}`], {
+      stdio: 'inherit',
+      shell: true
+    })
+    
+    if (result.status !== 0) {
+      throw new Error(`Failed to start tmux session. Exit code: ${result.status}`)
+    }
+    
+    console.info(`\nTmux session "${projectName}" created successfully!`)
+    console.info(`To attach to this session, run: tmux attach-session -t ${projectName}`)
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to execute tmux command: ${error.message}`)
+    } else {
+      throw new Error('Failed to execute tmux command')
+    }
+  }
+}
+
 function main() {
   try {
+    // Check if we're inside a tmux session
+    if (isInsideTmux()) {
+      console.error('Error: This command cannot be run from within a tmux session.')
+      console.error('Please exit your current tmux session and try again.')
+      process.exit(2)
+    }
+
+    // Check if teamocil is installed
+    if (!isTeamocilInstalled()) {
+      console.error('Error: teamocil is not installed or not in your PATH.')
+      console.error('Please install teamocil with: gem install teamocil')
+      process.exit(3)
+    }
+
     const {
       name: projectName,
       hasDevScript,
@@ -139,8 +202,9 @@ function main() {
     console.info('------------------------')
     console.info(teamocilYaml)
     console.info('------------------------')
-    console.info('This would create a tmux session with vim open in a pane.')
-    console.info(`\nTeamocil configuration written to: ${tempFilePath}`)
+    
+    // Execute the tmux command with the generated teamocil file
+    executeTmuxCommand(projectName, tempFilePath)
   } catch (error) {
     if (error instanceof Error) {
       console.error(`Error: ${error.message}`)
