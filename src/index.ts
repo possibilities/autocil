@@ -3,24 +3,20 @@ import path from 'path'
 import os from 'os'
 import { execSync, spawnSync } from 'child_process'
 
-// Parse command line arguments
 function parseArgs(): { targetDir: string; customName?: string } {
   const args = process.argv.slice(2)
   let targetDir: string | undefined
   let customName: string | undefined
-  
-  // Parse arguments
+
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--name' && i + 1 < args.length) {
       customName = args[i + 1]
-      i++ // Skip the next argument as it's the value for --name
+      i++
     } else if (!targetDir && !args[i].startsWith('--')) {
-      // First non-flag argument is the target directory
       targetDir = args[i]
     }
   }
-  
-  // If a directory was provided, validate it
+
   if (targetDir) {
     const resolvedPath = path.resolve(targetDir)
     if (!fs.existsSync(resolvedPath)) {
@@ -33,8 +29,7 @@ function parseArgs(): { targetDir: string; customName?: string } {
     }
     return { targetDir: resolvedPath, customName }
   }
-  
-  // Default to current working directory
+
   return { targetDir: process.cwd(), customName }
 }
 
@@ -57,6 +52,7 @@ function generateTeamocilYaml(
   hasTestsWatchScript: boolean,
   hasTypesWatchScript: boolean,
   hasDockerCompose: boolean,
+  hasDbStudioScript: boolean,
   dir: string,
 ): string {
   let yamlContent = `# Teamocil configuration for ${projectName}
@@ -101,9 +97,16 @@ windows:`
     yamlContent += `
   - name: services
     root: ${dir}
+    layout: even-horizontal
     panes:
       - commands:
         - docker compose down 2>&1 | tee docker-output.log ; docker compose up --build 2>&1 | tee -a docker-output.log`
+
+    if (hasDbStudioScript) {
+      yamlContent += `
+      - commands:
+        - pnpm db:studio`
+    }
   }
 
   yamlContent += `
@@ -112,16 +115,21 @@ windows:`
   return yamlContent
 }
 
-function getProjectInfo(dir: string, customName?: string): {
+function getProjectInfo(
+  dir: string,
+  customName?: string,
+): {
   name: string
   hasDevScript: boolean
   hasTestsWatchScript: boolean
   hasTypesWatchScript: boolean
+  hasDbStudioScript: boolean
 } {
   let projectName = customName || path.basename(dir)
   let hasDevScript = false
   let hasTestsWatchScript = false
   let hasTypesWatchScript = false
+  let hasDbStudioScript = false
 
   if (fs.existsSync(packageJsonPath)) {
     try {
@@ -141,6 +149,9 @@ function getProjectInfo(dir: string, customName?: string): {
         if (packageJson.scripts['types:watch']) {
           hasTypesWatchScript = true
         }
+        if (packageJson.scripts['db:studio']) {
+          hasDbStudioScript = true
+        }
       }
     } catch (error) {}
   }
@@ -150,6 +161,7 @@ function getProjectInfo(dir: string, customName?: string): {
     hasDevScript,
     hasTestsWatchScript,
     hasTypesWatchScript,
+    hasDbStudioScript,
   }
 }
 
@@ -168,19 +180,14 @@ function isTeamocilInstalled(): boolean {
 
 function executeTmuxCommand(projectName: string, tempFilePath: string): void {
   try {
-    // Kill any existing session with the same name
     try {
       execSync(`tmux kill-session -t ${projectName}`, { stdio: 'ignore' })
       console.info(`Killed existing tmux session: ${projectName}`)
-    } catch (error) {
-      // It's okay if the session doesn't exist yet
-    }
+    } catch (error) {}
 
-    // Start a new session with teamocil
     console.info(`Starting new tmux session: ${projectName}`)
     console.info(`Using teamocil layout: ${tempFilePath}`)
 
-    // Use spawn to create a detached process that won't block the parent
     const result = spawnSync(
       'tmux',
       ['new-session', '-d', `teamocil --layout ${tempFilePath}`],
@@ -211,7 +218,6 @@ function executeTmuxCommand(projectName: string, tempFilePath: string): void {
 
 function main() {
   try {
-    // Check if we're inside a tmux session
     if (isInsideTmux()) {
       console.error(
         'Error: This command cannot be run from within a tmux session.',
@@ -220,7 +226,6 @@ function main() {
       process.exit(2)
     }
 
-    // Check if teamocil is installed
     if (!isTeamocilInstalled()) {
       console.error('Error: teamocil is not installed or not in your PATH.')
       console.error('Please install teamocil with: gem install teamocil')
@@ -232,6 +237,7 @@ function main() {
       hasDevScript,
       hasTestsWatchScript,
       hasTypesWatchScript,
+      hasDbStudioScript,
     } = getProjectInfo(targetDir, customName)
 
     const hasDockerCompose = hasDockerComposeFile(targetDir)
@@ -242,6 +248,7 @@ function main() {
       hasTestsWatchScript,
       hasTypesWatchScript,
       hasDockerCompose,
+      hasDbStudioScript,
       targetDir,
     )
 
@@ -259,7 +266,6 @@ function main() {
     console.info(teamocilYaml)
     console.info('------------------------')
 
-    // Execute the tmux command with the generated teamocil file
     executeTmuxCommand(projectName, tempFilePath)
   } catch (error) {
     if (error instanceof Error) {
