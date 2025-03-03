@@ -3,17 +3,40 @@ import path from 'path'
 import os from 'os'
 import { execSync, spawnSync } from 'child_process'
 
-const cwd = process.cwd()
-const packageJsonPath = path.join(cwd, 'package.json')
+// Parse command line arguments
+function parseArgs(): string {
+  // Get the first argument after the command (if any)
+  const targetDir = process.argv[2]
+  
+  // If a directory was provided, validate it
+  if (targetDir) {
+    const resolvedPath = path.resolve(targetDir)
+    if (!fs.existsSync(resolvedPath)) {
+      console.error(`Error: Directory does not exist: ${resolvedPath}`)
+      process.exit(1)
+    }
+    if (!fs.statSync(resolvedPath).isDirectory()) {
+      console.error(`Error: Not a directory: ${resolvedPath}`)
+      process.exit(1)
+    }
+    return resolvedPath
+  }
+  
+  // Default to current working directory
+  return process.cwd()
+}
 
-function hasDockerComposeFile(): boolean {
+const targetDir = parseArgs()
+const packageJsonPath = path.join(targetDir, 'package.json')
+
+function hasDockerComposeFile(dir: string): boolean {
   const possibleFiles = [
     'docker-compose.yml',
     'docker-compose.yaml',
     'docker-compose.json',
   ]
 
-  return possibleFiles.some(file => fs.existsSync(path.join(cwd, file)))
+  return possibleFiles.some(file => fs.existsSync(path.join(dir, file)))
 }
 
 function generateTeamocilYaml(
@@ -22,6 +45,7 @@ function generateTeamocilYaml(
   hasTestsWatchScript: boolean,
   hasTypesWatchScript: boolean,
   hasDockerCompose: boolean,
+  dir: string,
 ): string {
   let yamlContent = `# Teamocil configuration for ${projectName}
 name: ${projectName}
@@ -30,7 +54,7 @@ windows:`
   yamlContent += `
   - name: code
     focus: true
-    root: ${cwd}
+    root: ${dir}
     layout: main-vertical
     panes:
       - commands:
@@ -64,7 +88,7 @@ windows:`
   if (hasDockerCompose) {
     yamlContent += `
   - name: services
-    root: ${cwd}
+    root: ${dir}
     panes:
       - commands:
         - docker compose down 2>&1 | tee docker-output.log ; docker compose up --build 2>&1 | tee -a docker-output.log`
@@ -76,13 +100,13 @@ windows:`
   return yamlContent
 }
 
-function getProjectInfo(): {
+function getProjectInfo(dir: string): {
   name: string
   hasDevScript: boolean
   hasTestsWatchScript: boolean
   hasTypesWatchScript: boolean
 } {
-  let projectName = path.basename(cwd)
+  let projectName = path.basename(dir)
   let hasDevScript = false
   let hasTestsWatchScript = false
   let hasTypesWatchScript = false
@@ -196,9 +220,9 @@ function main() {
       hasDevScript,
       hasTestsWatchScript,
       hasTypesWatchScript,
-    } = getProjectInfo()
+    } = getProjectInfo(targetDir)
 
-    const hasDockerCompose = hasDockerComposeFile()
+    const hasDockerCompose = hasDockerComposeFile(targetDir)
 
     const teamocilYaml = generateTeamocilYaml(
       projectName,
@@ -206,6 +230,7 @@ function main() {
       hasTestsWatchScript,
       hasTypesWatchScript,
       hasDockerCompose,
+      targetDir,
     )
 
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
