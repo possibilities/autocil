@@ -28,7 +28,7 @@ name: ${projectName}
 windows:`
 
   yamlContent += `
-  - name: ${projectName}
+  - name: code
     root: ${cwd}
     layout: main-vertical
     panes:
@@ -48,9 +48,11 @@ windows:`
         - pnpm run types:watch`
   }
 
-  yamlContent += `
+  if (hasDevScript) {
+    yamlContent += `
       - commands:
-        - ${hasDevScript ? 'pnpm run dev' : 'echo "No dev script found"'}`
+        - pnpm run dev`
+  }
 
   if (hasDockerCompose) {
     yamlContent += `
@@ -134,19 +136,27 @@ function executeTmuxCommand(projectName: string, tempFilePath: string): void {
     // Start a new session with teamocil
     console.info(`Starting new tmux session: ${projectName}`)
     console.info(`Using teamocil layout: ${tempFilePath}`)
-    
+
     // Use spawn to create a detached process that won't block the parent
-    const result = spawnSync('tmux', ['new-session', '-d', `teamocil --layout ${tempFilePath}`], {
-      stdio: 'inherit',
-      shell: true
-    })
-    
+    const result = spawnSync(
+      'tmux',
+      ['new-session', '-d', `teamocil --layout ${tempFilePath}`],
+      {
+        stdio: 'inherit',
+        shell: true,
+      },
+    )
+
     if (result.status !== 0) {
-      throw new Error(`Failed to start tmux session. Exit code: ${result.status}`)
+      throw new Error(
+        `Failed to start tmux session. Exit code: ${result.status}`,
+      )
     }
-    
+
     console.info(`\nTmux session "${projectName}" created successfully!`)
-    console.info(`To attach to this session, run: tmux attach-session -t ${projectName}`)
+    console.info(
+      `To attach to this session, run: tmux attach-session -t ${projectName}`,
+    )
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(`Failed to execute tmux command: ${error.message}`)
@@ -160,7 +170,9 @@ function main() {
   try {
     // Check if we're inside a tmux session
     if (isInsideTmux()) {
-      console.error('Error: This command cannot be run from within a tmux session.')
+      console.error(
+        'Error: This command cannot be run from within a tmux session.',
+      )
       console.error('Please exit your current tmux session and try again.')
       process.exit(2)
     }
@@ -202,7 +214,7 @@ function main() {
     console.info('------------------------')
     console.info(teamocilYaml)
     console.info('------------------------')
-    
+
     // Execute the tmux command with the generated teamocil file
     executeTmuxCommand(projectName, tempFilePath)
   } catch (error) {
