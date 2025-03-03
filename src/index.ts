@@ -58,17 +58,21 @@ function main() {
     const { name: projectName, hasDevScript } = getProjectInfo();
     const teamocilYaml = generateTeamocilYaml(projectName, hasDevScript);
     
-    // For now, just echo the content
+    // Generate a timestamp-based random filename
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const randomSuffix = Math.floor(Math.random() * 10000);
+    const tempFilePath = path.join(os.tmpdir(), `${projectName}_${timestamp}_${randomSuffix}.yml`);
+    
+    // Write the YAML to the temporary file
+    fs.writeFileSync(tempFilePath, teamocilYaml);
+    
+    // Display the generated YAML and file location
     console.log('Generated teamocil YAML:');
     console.log('------------------------');
     console.log(teamocilYaml);
     console.log('------------------------');
     console.log('This would create a tmux session with vim open in a pane.');
-    
-    // In the future, this would write to a temporary file
-    // const tempFilePath = path.join(os.tmpdir(), `${projectName}.yml`);
-    // fs.writeFileSync(tempFilePath, teamocilYaml);
-    // console.log(`Teamocil configuration written to: ${tempFilePath}`);
+    console.log(`\nTeamocil configuration written to: ${tempFilePath}`);
     
   } catch (error) {
     if (error instanceof Error) {
