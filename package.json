@@ -4,7 +4,7 @@
   "description": "A CLI tool that generates teamocil YAML configurations for tmux sessions",
   "main": "dist/index.js",
   "bin": {
-    "autocil": "./dist/index.js"
+    "autocil": "./bin.js"
   },
   "scripts": {
     "build": "tsc",
@@ -25,5 +25,13 @@
     "@types/node": "^20.17.22",
     "ts-node": "^10.9.2",
     "typescript": "^5.3.3"
+  },
+  "pnpm": {
+    "overrides": {
+      "autocil": "link:"
+    }
+  },
+  "dependencies": {
+    "autocil": "link:"
   }
 }

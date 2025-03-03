@@ -9,8 +9,13 @@ const cwd = process.cwd();
 const packageJsonPath = path.join(cwd, 'package.json');
 
 // Function to generate teamocil YAML content
-function generateTeamocilYaml(projectName: string, hasDevScript: boolean): string {
-  return `# Teamocil configuration for ${projectName}
+function generateTeamocilYaml(
+  projectName: string, 
+  hasDevScript: boolean, 
+  hasTestsWatchScript: boolean, 
+  hasTypesWatchScript: boolean
+): string {
+  let yamlContent = `# Teamocil configuration for ${projectName}
 name: ${projectName}
 windows:
   - name: ${projectName}
@@ -19,17 +24,43 @@ windows:
     panes:
       - commands:
         - vim
-        focus: true
+        focus: true`;
+        
+  // Add test:watch pane if it exists
+  if (hasTestsWatchScript) {
+    yamlContent += `
       - commands:
-        - ${hasDevScript ? 'npm run dev' : 'echo "No dev script found"'}
+        - pnpm run test:watch`;
+  }
+  
+  // Add types:watch pane if it exists
+  if (hasTypesWatchScript) {
+    yamlContent += `
+      - commands:
+        - pnpm run types:watch`;
+  }
+  
+  // Add dev pane
+  yamlContent += `
+      - commands:
+        - ${hasDevScript ? 'pnpm run dev' : 'echo "No dev script found"'}
 `;
+
+  return yamlContent;
 }
 
 // Get project info from package.json
-function getProjectInfo(): { name: string; hasDevScript: boolean } {
+function getProjectInfo(): { 
+  name: string; 
+  hasDevScript: boolean;
+  hasTestsWatchScript: boolean;
+  hasTypesWatchScript: boolean;
+} {
   // Default to directory name
   let projectName = path.basename(cwd);
   let hasDevScript = false;
+  let hasTestsWatchScript = false;
+  let hasTypesWatchScript = false;
   
   // Try to get info from package.json if it exists
   if (fs.existsSync(packageJsonPath)) {
@@ -40,23 +71,46 @@ function getProjectInfo(): { name: string; hasDevScript: boolean } {
         projectName = packageJson.name;
       }
       
-      // Check if there's a dev script
-      if (packageJson.scripts && packageJson.scripts.dev) {
-        hasDevScript = true;
+      // Check for scripts
+      if (packageJson.scripts) {
+        if (packageJson.scripts.dev) {
+          hasDevScript = true;
+        }
+        if (packageJson.scripts['test:watch']) {
+          hasTestsWatchScript = true;
+        }
+        if (packageJson.scripts['types:watch']) {
+          hasTypesWatchScript = true;
+        }
       }
     } catch (error) {
       // Silently fall back to directory name if package.json can't be parsed
     }
   }
   
-  return { name: projectName, hasDevScript };
+  return { 
+    name: projectName, 
+    hasDevScript, 
+    hasTestsWatchScript, 
+    hasTypesWatchScript 
+  };
 }
 
 // Main function
 function main() {
   try {
-    const { name: projectName, hasDevScript } = getProjectInfo();
-    const teamocilYaml = generateTeamocilYaml(projectName, hasDevScript);
+    const { 
+      name: projectName, 
+      hasDevScript, 
+      hasTestsWatchScript, 
+      hasTypesWatchScript 
+    } = getProjectInfo();
+    const teamocilYaml = generateTeamocilYaml(
+      projectName, 
+      hasDevScript, 
+      hasTestsWatchScript, 
+      hasTypesWatchScript
+    );
     
     // Generate a timestamp-based random filename
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
