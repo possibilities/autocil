@@ -4,9 +4,21 @@ import os from 'os'
 import { execSync, spawnSync } from 'child_process'
 
 // Parse command line arguments
-function parseArgs(): string {
-  // Get the first argument after the command (if any)
-  const targetDir = process.argv[2]
+function parseArgs(): { targetDir: string; customName?: string } {
+  const args = process.argv.slice(2)
+  let targetDir: string | undefined
+  let customName: string | undefined
+  
+  // Parse arguments
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--name' && i + 1 < args.length) {
+      customName = args[i + 1]
+      i++ // Skip the next argument as it's the value for --name
+    } else if (!targetDir && !args[i].startsWith('--')) {
+      // First non-flag argument is the target directory
+      targetDir = args[i]
+    }
+  }
   
   // If a directory was provided, validate it
   if (targetDir) {
@@ -19,14 +31,14 @@ function parseArgs(): string {
       console.error(`Error: Not a directory: ${resolvedPath}`)
       process.exit(1)
     }
-    return resolvedPath
+    return { targetDir: resolvedPath, customName }
   }
   
   // Default to current working directory
-  return process.cwd()
+  return { targetDir: process.cwd(), customName }
 }
 
-const targetDir = parseArgs()
+const { targetDir, customName } = parseArgs()
 const packageJsonPath = path.join(targetDir, 'package.json')
 
 function hasDockerComposeFile(dir: string): boolean {
@@ -100,13 +112,13 @@ windows:`
   return yamlContent
 }
 
-function getProjectInfo(dir: string): {
+function getProjectInfo(dir: string, customName?: string): {
   name: string
   hasDevScript: boolean
   hasTestsWatchScript: boolean
   hasTypesWatchScript: boolean
 } {
-  let projectName = path.basename(dir)
+  let projectName = customName || path.basename(dir)
   let hasDevScript = false
   let hasTestsWatchScript = false
   let hasTypesWatchScript = false
@@ -115,7 +127,7 @@ function getProjectInfo(dir: string): {
     try {
       const packageJsonContent = fs.readFileSync(packageJsonPath, 'utf8')
       const packageJson = JSON.parse(packageJsonContent)
-      if (packageJson.name) {
+      if (packageJson.name && !customName) {
         projectName = packageJson.name
       }
 
@@ -220,7 +232,7 @@ function main() {
       hasDevScript,
       hasTestsWatchScript,
       hasTypesWatchScript,
-    } = getProjectInfo(targetDir)
+    } = getProjectInfo(targetDir, customName)
 
     const hasDockerCompose = hasDockerComposeFile(targetDir)
 

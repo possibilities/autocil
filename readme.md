@@ -21,11 +21,12 @@ npm link
 Run the command in any directory:
 
 ```bash
-autocil [directory]
+autocil [directory] [--name session-name]
 ```
 
 Where:
 - `[directory]` is an optional path to a directory. If provided, autocil will use this directory instead of the current working directory.
+- `--name session-name` is an optional argument to specify a custom name for the tmux session. If not provided, the name from package.json or the directory name will be used.
 
 Examples:
 
@@ -35,6 +36,12 @@ autocil
 
 # Use a specific directory
 autocil /path/to/your/project
+
+# Use a custom session name
+autocil --name my-project
+
+# Use both a specific directory and a custom session name
+autocil /path/to/your/project --name my-project
 ```
 
 This will:
@@ -43,7 +50,7 @@ This will:
 3. Start a new tmux session using the generated configuration
 4. Display instructions for attaching to the session
 
-The project name is determined from the package.json file if it exists, otherwise it uses the directory name.
+By default, the project name (used for the tmux session) is determined from the package.json file if it exists, otherwise it uses the directory name. When the `--name` argument is provided, it overrides this behavior and uses the specified name instead.
 
 ## What is teamocil?
 
