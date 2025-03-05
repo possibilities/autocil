@@ -9,8 +9,7 @@
     "cli",
     "typescript",
     "tmux",
-    "teamocil",
-    "vim"
+    "teamocil"
   ],
   "author": "",
   "license": "MIT",

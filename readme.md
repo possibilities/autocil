@@ -1,6 +1,6 @@
 # autocil
 
-A TypeScript CLI tool that generates a teamocil YAML configuration for opening the current project in vim within a tmux pane.
+A TypeScript CLI tool that generates a teamocil YAML configuration for opening the current project in a tmux pane with common tasks and scripts automatically run for development
 
 ## Installation
 
