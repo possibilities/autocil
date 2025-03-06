@@ -14,20 +14,28 @@ Arguments:
 
 Options:
   --name <session-name> Specify a custom session name
+  --no-attach           Create the tmux session but don't automatically attach to it
   --help                Show this help message
 
 Examples:
   autocil                      # Use current directory
   autocil ~/projects/myapp     # Use specified directory
   autocil --name my-session    # Use custom session name
+  autocil --no-attach          # Create session without attaching
 `)
   process.exit(0)
 }
 
-function parseArgs(): { targetDir: string; customName?: string } {
+function parseArgs(): {
+  targetDir: string
+  customName?: string
+  noAttach?: boolean
+} {
   const args = process.argv.slice(2)
   let targetDir: string | undefined
   let customName: string | undefined
+  let noAttach: boolean = false
+  const validOptions = ['--help', '--name', '--no-attach']
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--help') {
@@ -35,8 +43,16 @@ function parseArgs(): { targetDir: string; customName?: string } {
     } else if (args[i] === '--name' && i + 1 < args.length) {
       customName = args[i + 1]
       i++
+    } else if (args[i] === '--no-attach') {
+      noAttach = true
     } else if (!targetDir && !args[i].startsWith('--')) {
       targetDir = args[i]
+    } else if (args[i].startsWith('-')) {
+      if (!validOptions.includes(args[i])) {
+        console.error(`Error: Unknown option: ${args[i]}`)
+        showHelp()
+        process.exit(1)
+      }
     }
   }
 
@@ -44,19 +60,21 @@ function parseArgs(): { targetDir: string; customName?: string } {
     const resolvedPath = path.resolve(targetDir)
     if (!fs.existsSync(resolvedPath)) {
       console.error(`Error: Directory does not exist: ${resolvedPath}`)
+      showHelp()
       process.exit(1)
     }
     if (!fs.statSync(resolvedPath).isDirectory()) {
       console.error(`Error: Not a directory: ${resolvedPath}`)
+      showHelp()
       process.exit(1)
     }
-    return { targetDir: resolvedPath, customName }
+    return { targetDir: resolvedPath, customName, noAttach }
   }
 
-  return { targetDir: process.cwd(), customName }
+  return { targetDir: process.cwd(), customName, noAttach }
 }
 
-const { targetDir, customName } = parseArgs()
+const { targetDir, customName, noAttach } = parseArgs()
 const packageJsonPath = path.join(targetDir, 'package.json')
 
 function hasDockerComposeFile(dir: string): boolean {
@@ -201,7 +219,11 @@ function isTeamocilInstalled(): boolean {
   }
 }
 
-function executeTmuxCommand(projectName: string, tempFilePath: string, autoAttach: boolean = false): void {
+function executeTmuxCommand(
+  projectName: string,
+  tempFilePath: string,
+  autoAttach: boolean = false,
+): void {
   try {
     try {
       execSync(`tmux kill-session -t ${projectName}`, { stdio: 'ignore' })
@@ -227,17 +249,20 @@ function executeTmuxCommand(projectName: string, tempFilePath: string, autoAttac
     }
 
     console.info(`\nTmux session "${projectName}" created successfully!`)
-    
+
     if (autoAttach) {
       console.info(`Attaching to tmux session "${projectName}"...`)
-      // Add a small delay to ensure the session is ready before attaching
-  setTimeout(() => {
-    try {
-      execSync(`tmux attach-session -t ${projectName}`, { stdio: 'inherit' })
-    } catch (error) {
-      console.error(`Error attaching to session: ${error instanceof Error ? error.message : 'unknown error'}`)
-    }
-  }, 500)
+      setTimeout(() => {
+        try {
+          execSync(`tmux attach-session -t ${projectName}`, {
+            stdio: 'inherit',
+          })
+        } catch (error) {
+          console.error(
+            `Error attaching to session: ${error instanceof Error ? error.message : 'unknown error'}`,
+          )
+        }
+      }, 500)
     } else {
       console.info(
         `To attach to this session, run: tmux attach-session -t ${projectName}`,
@@ -259,12 +284,14 @@ function main() {
         'Error: This command cannot be run from within a tmux session.',
       )
       console.error('Please exit your current tmux session and try again.')
+      showHelp()
       process.exit(2)
     }
 
     if (!isTeamocilInstalled()) {
       console.error('Error: teamocil is not installed or not in your PATH.')
       console.error('Please install teamocil with: gem install teamocil')
+      showHelp()
       process.exit(3)
     }
 
@@ -302,7 +329,7 @@ function main() {
     console.info(teamocilYaml)
     console.info('------------------------')
 
-    executeTmuxCommand(projectName, tempFilePath, true)
+    executeTmuxCommand(projectName, tempFilePath, !noAttach)
   } catch (error) {
     if (error instanceof Error) {
       console.error(`Error: ${error.message}`)

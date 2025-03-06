@@ -13,7 +13,7 @@
 - **Types**: Use strict TypeScript typing with explicit return types on functions
 - **Naming**: camelCase for variables/functions, PascalCase for types/interfaces
 - **Error Handling**: Use try/catch with explicit error messages and appropriate exit codes
-- **Comments**: Minimal, focused on "why" not "what"
+- **Comments**: No comments used. Use explanatory symbol names instead.
 - **Structure**: Single-purpose functions with descriptive names (< 50 lines each)
 - **Exports**: Prefer named exports over default exports
 
