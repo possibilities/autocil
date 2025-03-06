@@ -3,7 +3,7 @@
 ## Build/Test Commands
 - Install: `npm install`
 - Install globally: `npm link`
-- Run locally: `ts-node src/index.ts [directory] [--name session-name]`
+- Run locally: `ts-node src/index.ts [directory1] [directory2] ... [--name session-name]`
 - Typecheck: `npx tsc --noEmit`
 - Format: `npx prettier --write "src/**/*.ts"`
 

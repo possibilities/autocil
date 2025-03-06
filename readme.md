@@ -21,11 +21,11 @@ npm link
 Run the command in any directory:
 
 ```bash
-autocil [directory] [--name session-name]
+autocil [directory1] [directory2] ... [--name session-name]
 ```
 
 Where:
-- `[directory]` is an optional path to a directory. If provided, autocil will use this directory instead of the current working directory.
+- `[directory1] [directory2] ...` are optional paths to directories. If provided, autocil will create tmux sessions for each directory. If not provided, it will use the current working directory.
 - `--name session-name` is an optional argument to specify a custom name for the tmux session. If not provided, the name from package.json or the directory name will be used.
 
 Examples:
@@ -37,6 +37,9 @@ autocil
 # Use a specific directory
 autocil /path/to/your/project
 
+# Create sessions for multiple directories
+autocil /path/to/project1 /path/to/project2 /path/to/project3
+
 # Use a custom session name
 autocil --name my-project
 
@@ -45,12 +48,15 @@ autocil /path/to/your/project --name my-project
 ```
 
 This will:
-1. Generate a teamocil YAML configuration for the specified project
-2. Create a temporary YAML file
-3. Start a new tmux session using the generated configuration
-4. Display instructions for attaching to the session
+1. Generate a teamocil YAML configuration for each specified project
+2. Create temporary YAML files
+3. Start new tmux sessions using the generated configurations
+4. Automatically attach to the last created session (unless --no-attach is specified)
+5. Display instructions for attaching to the sessions
 
 By default, the project name (used for the tmux session) is determined from the package.json file if it exists, otherwise it uses the directory name. When the `--name` argument is provided, it overrides this behavior and uses the specified name instead.
+
+When multiple directories are specified, tmux sessions will be created for each one, but you'll only be automatically attached to the last session created.
 
 ## What is teamocil?
 

@@ -5,34 +5,35 @@ import { execSync, spawnSync } from 'child_process'
 
 function showHelp(): void {
   console.log(`
-Usage: autocil [directory] [options]
+Usage: autocil [directory1] [directory2] ... [options]
 
-Creates a tmux session with a teamocil layout for your project.
+Creates tmux sessions with teamocil layouts for one or more projects.
 
 Arguments:
-  directory             Target directory (defaults to current directory)
+  directory1, directory2, ...  Target directories (defaults to current directory if none specified)
 
 Options:
   --name <session-name> Specify a custom session name
-  --no-attach           Create the tmux session but don't automatically attach to it
+  --no-attach           Create the tmux sessions but don't automatically attach to them
   --help                Show this help message
 
 Examples:
-  autocil                      # Use current directory
-  autocil ~/projects/myapp     # Use specified directory
-  autocil --name my-session    # Use custom session name
-  autocil --no-attach          # Create session without attaching
+  autocil                                 # Use current directory
+  autocil ~/projects/myapp                # Use specified directory
+  autocil ~/projects/app1 ~/projects/app2 # Create sessions for multiple directories
+  autocil --name my-session               # Use custom session name
+  autocil --no-attach                     # Create session without attaching
 `)
   process.exit(0)
 }
 
 function parseArgs(): {
-  targetDir: string
+  targetDirs: string[]
   customName?: string
   noAttach?: boolean
 } {
   const args = process.argv.slice(2)
-  let targetDir: string | undefined
+  const targetDirs: string[] = []
   let customName: string | undefined
   let noAttach: boolean = false
   const validOptions = ['--help', '--name', '--no-attach']
@@ -45,8 +46,19 @@ function parseArgs(): {
       i++
     } else if (args[i] === '--no-attach') {
       noAttach = true
-    } else if (!targetDir && !args[i].startsWith('--')) {
-      targetDir = args[i]
+    } else if (!args[i].startsWith('--')) {
+      const resolvedPath = path.resolve(args[i])
+      if (!fs.existsSync(resolvedPath)) {
+        console.error(`Error: Directory does not exist: ${resolvedPath}`)
+        showHelp()
+        process.exit(1)
+      }
+      if (!fs.statSync(resolvedPath).isDirectory()) {
+        console.error(`Error: Not a directory: ${resolvedPath}`)
+        showHelp()
+        process.exit(1)
+      }
+      targetDirs.push(resolvedPath)
     } else if (args[i].startsWith('-')) {
       if (!validOptions.includes(args[i])) {
         console.error(`Error: Unknown option: ${args[i]}`)
@@ -56,26 +68,15 @@ function parseArgs(): {
     }
   }
 
-  if (targetDir) {
-    const resolvedPath = path.resolve(targetDir)
-    if (!fs.existsSync(resolvedPath)) {
-      console.error(`Error: Directory does not exist: ${resolvedPath}`)
-      showHelp()
-      process.exit(1)
-    }
-    if (!fs.statSync(resolvedPath).isDirectory()) {
-      console.error(`Error: Not a directory: ${resolvedPath}`)
-      showHelp()
-      process.exit(1)
-    }
-    return { targetDir: resolvedPath, customName, noAttach }
+  // If no directories specified, use current directory
+  if (targetDirs.length === 0) {
+    targetDirs.push(process.cwd())
   }
 
-  return { targetDir: process.cwd(), customName, noAttach }
+  return { targetDirs, customName, noAttach }
 }
 
-const { targetDir, customName, noAttach } = parseArgs()
-const packageJsonPath = path.join(targetDir, 'package.json')
+const { targetDirs, customName, noAttach } = parseArgs()
 
 function hasDockerComposeFile(dir: string): boolean {
   const possibleFiles = [
@@ -172,6 +173,7 @@ function getProjectInfo(
   let hasTypesWatchScript = false
   let hasDbStudioScript = false
 
+  const packageJsonPath = path.join(dir, 'package.json')
   if (fs.existsSync(packageJsonPath)) {
     try {
       const packageJsonContent = fs.readFileSync(packageJsonPath, 'utf8')
@@ -295,41 +297,49 @@ function main() {
       process.exit(3)
     }
 
-    const {
-      name: projectName,
-      hasDevScript,
-      hasTestsWatchScript,
-      hasTypesWatchScript,
-      hasDbStudioScript,
-    } = getProjectInfo(targetDir, customName)
+    // Process each target directory
+    for (const targetDir of targetDirs) {
+      const packageJsonPath = path.join(targetDir, 'package.json')
+      const {
+        name: projectName,
+        hasDevScript,
+        hasTestsWatchScript,
+        hasTypesWatchScript,
+        hasDbStudioScript,
+      } = getProjectInfo(targetDir, customName)
 
-    const hasDockerCompose = hasDockerComposeFile(targetDir)
+      const hasDockerCompose = hasDockerComposeFile(targetDir)
 
-    const teamocilYaml = generateTeamocilYaml(
-      projectName,
-      hasDevScript,
-      hasTestsWatchScript,
-      hasTypesWatchScript,
-      hasDockerCompose,
-      hasDbStudioScript,
-      targetDir,
-    )
+      const teamocilYaml = generateTeamocilYaml(
+        projectName,
+        hasDevScript,
+        hasTestsWatchScript,
+        hasTypesWatchScript,
+        hasDockerCompose,
+        hasDbStudioScript,
+        targetDir,
+      )
 
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
-    const randomSuffix = Math.floor(Math.random() * 10000)
-    const tempFilePath = path.join(
-      os.tmpdir(),
-      `${projectName}_${timestamp}_${randomSuffix}.yml`,
-    )
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+      const randomSuffix = Math.floor(Math.random() * 10000)
+      const tempFilePath = path.join(
+        os.tmpdir(),
+        `${projectName}_${timestamp}_${randomSuffix}.yml`,
+      )
 
-    fs.writeFileSync(tempFilePath, teamocilYaml)
+      fs.writeFileSync(tempFilePath, teamocilYaml)
 
-    console.info('Generated teamocil YAML:')
-    console.info('------------------------')
-    console.info(teamocilYaml)
-    console.info('------------------------')
+      console.info(`Creating tmux session for: ${targetDir}`)
+      console.info('Generated teamocil YAML:')
+      console.info('------------------------')
+      console.info(teamocilYaml)
+      console.info('------------------------')
 
-    executeTmuxCommand(projectName, tempFilePath, !noAttach)
+      // Only attach to the last session if multiple are created
+      const shouldAttach =
+        !noAttach && targetDir === targetDirs[targetDirs.length - 1]
+      executeTmuxCommand(projectName, tempFilePath, shouldAttach)
+    }
   } catch (error) {
     if (error instanceof Error) {
       console.error(`Error: ${error.message}`)
