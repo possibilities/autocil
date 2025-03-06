@@ -3,13 +3,36 @@ import path from 'path'
 import os from 'os'
 import { execSync, spawnSync } from 'child_process'
 
+function showHelp(): void {
+  console.log(`
+Usage: autocil [directory] [options]
+
+Creates a tmux session with a teamocil layout for your project.
+
+Arguments:
+  directory             Target directory (defaults to current directory)
+
+Options:
+  --name <session-name> Specify a custom session name
+  --help                Show this help message
+
+Examples:
+  autocil                      # Use current directory
+  autocil ~/projects/myapp     # Use specified directory
+  autocil --name my-session    # Use custom session name
+`)
+  process.exit(0)
+}
+
 function parseArgs(): { targetDir: string; customName?: string } {
   const args = process.argv.slice(2)
   let targetDir: string | undefined
   let customName: string | undefined
 
   for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--name' && i + 1 < args.length) {
+    if (args[i] === '--help') {
+      showHelp()
+    } else if (args[i] === '--name' && i + 1 < args.length) {
       customName = args[i + 1]
       i++
     } else if (!targetDir && !args[i].startsWith('--')) {
@@ -178,7 +201,7 @@ function isTeamocilInstalled(): boolean {
   }
 }
 
-function executeTmuxCommand(projectName: string, tempFilePath: string): void {
+function executeTmuxCommand(projectName: string, tempFilePath: string, autoAttach: boolean = false): void {
   try {
     try {
       execSync(`tmux kill-session -t ${projectName}`, { stdio: 'ignore' })
@@ -204,9 +227,22 @@ function executeTmuxCommand(projectName: string, tempFilePath: string): void {
     }
 
     console.info(`\nTmux session "${projectName}" created successfully!`)
-    console.info(
-      `To attach to this session, run: tmux attach-session -t ${projectName}`,
-    )
+    
+    if (autoAttach) {
+      console.info(`Attaching to tmux session "${projectName}"...`)
+      // Add a small delay to ensure the session is ready before attaching
+  setTimeout(() => {
+    try {
+      execSync(`tmux attach-session -t ${projectName}`, { stdio: 'inherit' })
+    } catch (error) {
+      console.error(`Error attaching to session: ${error instanceof Error ? error.message : 'unknown error'}`)
+    }
+  }, 500)
+    } else {
+      console.info(
+        `To attach to this session, run: tmux attach-session -t ${projectName}`,
+      )
+    }
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(`Failed to execute tmux command: ${error.message}`)
@@ -266,7 +302,7 @@ function main() {
     console.info(teamocilYaml)
     console.info('------------------------')
 
-    executeTmuxCommand(projectName, tempFilePath)
+    executeTmuxCommand(projectName, tempFilePath, true)
   } catch (error) {
     if (error instanceof Error) {
       console.error(`Error: ${error.message}`)
