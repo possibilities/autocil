@@ -26,7 +26,7 @@ autocil [directory1] [directory2] ... [--name session-name]
 
 Where:
 - `[directory1] [directory2] ...` are optional paths to directories. If provided, autocil will create tmux sessions for each directory. If not provided, it will use the current working directory.
-- `--name session-name` is an optional argument to specify a custom name for the tmux session. If not provided, the name from package.json or the directory name will be used.
+- `--name session-name` is an optional argument to specify a custom name for the tmux session. If not provided, the name from package.json or the directory name will be used. Note: This option cannot be used with multiple directories.
 
 Examples:
 

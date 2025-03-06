@@ -13,7 +13,7 @@ Arguments:
   directory1, directory2, ...  Target directories (defaults to current directory if none specified)
 
 Options:
-  --name <session-name> Specify a custom session name
+  --name <session-name> Specify a custom session name (cannot be used with multiple directories)
   --no-attach           Create the tmux sessions but don't automatically attach to them
   --help                Show this help message
 
@@ -21,7 +21,7 @@ Examples:
   autocil                                 # Use current directory
   autocil ~/projects/myapp                # Use specified directory
   autocil ~/projects/app1 ~/projects/app2 # Create sessions for multiple directories
-  autocil --name my-session               # Use custom session name
+  autocil --name my-session               # Use custom session name (single directory only)
   autocil --no-attach                     # Create session without attaching
 `)
   process.exit(0)
@@ -71,6 +71,14 @@ function parseArgs(): {
   // If no directories specified, use current directory
   if (targetDirs.length === 0) {
     targetDirs.push(process.cwd())
+  }
+
+  // Cannot use --name with multiple directories
+  if (customName && targetDirs.length > 1) {
+    console.error('Error: Cannot use --name with multiple directories')
+    console.error('Each tmux session needs a unique name')
+    showHelp()
+    process.exit(1)
   }
 
   return { targetDirs, customName, noAttach }
