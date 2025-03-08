@@ -1,5 +1,7 @@
 # AUTOCIL Commands and Guidelines
 
+This project generates teamocil YAML configurations for tmux sessions and runs scripts for development
+
 ## Build/Test Commands
 - Install: `npm install`
 - Install globally: `npm link`
@@ -13,8 +15,11 @@
 - **Types**: Use strict TypeScript typing with explicit return types on functions
 - **Naming**: camelCase for variables/functions, PascalCase for types/interfaces
 - **Error Handling**: Use try/catch with explicit error messages and appropriate exit codes
-- **Comments**: No comments used. Use explanatory symbol names instead.
+- **Comments**: Never add comments. Use explanatory symbol names instead.
 - **Structure**: Single-purpose functions with descriptive names (< 50 lines each)
 - **Exports**: Prefer named exports over default exports
 
-This project generates teamocil YAML configurations for tmux sessions and runs scripts for development
+## Best practices
+- As needed update readme.md and CLAUDE.md files after making changes
+- Always run prettier after making changes or adding files
+- Offer to create a commit after making changes

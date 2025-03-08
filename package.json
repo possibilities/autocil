@@ -15,9 +15,11 @@
   "license": "MIT",
   "devDependencies": {
     "@types/node": "^20.17.22",
+    "@types/yaml": "^1.9.7",
     "prettier": "^3.5.3",
     "ts-node": "^10.9.2",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "yaml": "^2.7.0"
   },
   "pnpm": {
     "overrides": {

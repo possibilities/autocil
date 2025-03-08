@@ -2,8 +2,37 @@ import fs from 'fs'
 import path from 'path'
 import os from 'os'
 import { execSync, spawnSync } from 'child_process'
+import YAML from 'yaml'
+
+interface Config {
+  root?: string
+}
+
+function loadConfig(): Config {
+  const defaultConfig: Config = {
+    root: path.join(os.homedir(), 'code'),
+  }
+
+  const configPath = path.join(os.homedir(), '.config', 'autocil.yaml')
+
+  try {
+    if (fs.existsSync(configPath)) {
+      const configContent = fs.readFileSync(configPath, 'utf8')
+      const parsedConfig = YAML.parse(configContent) as Config
+      return { ...defaultConfig, ...parsedConfig }
+    }
+  } catch (error) {
+    console.warn(
+      `Warning: Error loading config file: ${error instanceof Error ? error.message : 'unknown error'}`,
+    )
+  }
+
+  return defaultConfig
+}
 
 function showHelp(): void {
+  const config = loadConfig()
+
   console.log(`
 Usage: autocil [directory1] [directory2] ... [options]
 
@@ -11,6 +40,8 @@ Creates tmux sessions with teamocil layouts for one or more projects.
 
 Arguments:
   directory1, directory2, ...  Target directories (defaults to current directory if none specified)
+                              When only a name is provided (no path separators), 
+                              it will be resolved against the root directory: ${config.root}
 
 Options:
   --name <session-name> Specify a custom session name (cannot be used with multiple directories)
@@ -20,9 +51,16 @@ Options:
 Examples:
   autocil                                 # Use current directory
   autocil ~/projects/myapp                # Use specified directory
+  autocil myapp                           # Use project in root directory (${config.root}/myapp)
   autocil ~/projects/app1 ~/projects/app2 # Create sessions for multiple directories
+  autocil app1 app2                       # Create sessions for multiple projects in root directory
   autocil --name my-session               # Use custom session name (single directory only)
   autocil --no-attach                     # Create session without attaching
+
+Configuration:
+  A config file can be placed at ~/.config/autocil.yaml to customize settings:
+  
+  root: /path/to/your/projects  # Default: ~/code
 `)
   process.exit(0)
 }
@@ -32,6 +70,7 @@ function parseArgs(): {
   customName?: string
   noAttach?: boolean
 } {
+  const config = loadConfig()
   const args = process.argv.slice(2)
   const targetDirs: string[] = []
   let customName: string | undefined
@@ -47,12 +86,28 @@ function parseArgs(): {
     } else if (args[i] === '--no-attach') {
       noAttach = true
     } else if (!args[i].startsWith('--')) {
-      const resolvedPath = path.resolve(args[i])
+      // Check if the argument is a directory name without path separators
+      const isSimpleName = !args[i].includes('/') && !args[i].includes('\\')
+
+      // If it's a simple name, resolve it against the root directory
+      let resolvedPath
+      if (isSimpleName && config.root) {
+        resolvedPath = path.resolve(path.join(config.root, args[i]))
+      } else {
+        resolvedPath = path.resolve(args[i])
+      }
+
       if (!fs.existsSync(resolvedPath)) {
         console.error(`Error: Directory does not exist: ${resolvedPath}`)
+        if (isSimpleName && config.root) {
+          console.error(
+            `Note: Looked for "${args[i]}" in root directory: ${config.root}`,
+          )
+        }
         showHelp()
         process.exit(1)
       }
+
       if (!fs.statSync(resolvedPath).isDirectory()) {
         console.error(`Error: Not a directory: ${resolvedPath}`)
         showHelp()
