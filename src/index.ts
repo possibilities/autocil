@@ -153,6 +153,7 @@ function hasDockerComposeFile(dir: string): boolean {
 
 function generateTeamocilYaml(
   projectName: string,
+  displayName: string,
   hasDevScript: boolean,
   hasTestsWatchScript: boolean,
   hasTypesWatchScript: boolean,
@@ -160,7 +161,7 @@ function generateTeamocilYaml(
   hasDbStudioScript: boolean,
   dir: string,
 ): string {
-  let yamlContent = `# Teamocil configuration for ${projectName}
+  let yamlContent = `# Teamocil configuration for ${displayName}
 name: ${projectName}
 windows:`
 
@@ -220,17 +221,24 @@ windows:`
   return yamlContent
 }
 
+function sanitizePackageName(name: string): string {
+  // Replace @ and / with dashes, then remove any leading dash
+  return name.replace(/[@/]/g, '-').replace(/^-/, '')
+}
+
 function getProjectInfo(
   dir: string,
   customName?: string,
 ): {
   name: string
+  displayName: string
   hasDevScript: boolean
   hasTestsWatchScript: boolean
   hasTypesWatchScript: boolean
   hasDbStudioScript: boolean
 } {
   let projectName = customName || path.basename(dir)
+  let displayName = projectName
   let hasDevScript = false
   let hasTestsWatchScript = false
   let hasTypesWatchScript = false
@@ -242,7 +250,8 @@ function getProjectInfo(
       const packageJsonContent = fs.readFileSync(packageJsonPath, 'utf8')
       const packageJson = JSON.parse(packageJsonContent)
       if (packageJson.name && !customName) {
-        projectName = packageJson.name
+        displayName = packageJson.name
+        projectName = sanitizePackageName(packageJson.name)
       }
 
       if (packageJson.scripts) {
@@ -264,6 +273,7 @@ function getProjectInfo(
 
   return {
     name: projectName,
+    displayName,
     hasDevScript,
     hasTestsWatchScript,
     hasTypesWatchScript,
@@ -365,6 +375,7 @@ function main() {
       const packageJsonPath = path.join(targetDir, 'package.json')
       const {
         name: projectName,
+        displayName,
         hasDevScript,
         hasTestsWatchScript,
         hasTypesWatchScript,
@@ -375,6 +386,7 @@ function main() {
 
       const teamocilYaml = generateTeamocilYaml(
         projectName,
+        displayName,
         hasDevScript,
         hasTestsWatchScript,
         hasTypesWatchScript,
