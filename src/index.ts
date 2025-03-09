@@ -166,7 +166,7 @@ name: ${projectName}
 windows:`
 
   yamlContent += `
-  - name: code
+  - name: dev
     focus: true
     root: ${dir}
     layout: main-vertical
