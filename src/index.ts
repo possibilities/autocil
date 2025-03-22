@@ -151,6 +151,10 @@ function hasDockerComposeFile(dir: string): boolean {
   return possibleFiles.some(file => fs.existsSync(path.join(dir, file)))
 }
 
+function hasDockerfile(dir: string): boolean {
+  return fs.existsSync(path.join(dir, 'Dockerfile'))
+}
+
 function generateTeamocilYaml(
   projectName: string,
   displayName: string,
@@ -158,6 +162,7 @@ function generateTeamocilYaml(
   hasTestsWatchScript: boolean,
   hasTypesWatchScript: boolean,
   hasDockerCompose: boolean,
+  hasDockerfile: boolean,
   hasDbStudioScript: boolean,
   dir: string,
 ): string {
@@ -206,7 +211,7 @@ windows:`
     layout: even-horizontal
     panes:
       - commands:
-        - docker compose down 2>&1 | tee docker-output.log ; docker compose up --build 2>&1 | tee -a docker-output.log`
+        - docker compose down 2>&1 | tee docker-output.log ; docker compose up${hasDockerfile ? ' --build' : ''} 2>&1 | tee -a docker-output.log`
 
     if (hasDbStudioScript) {
       yamlContent += `
@@ -383,6 +388,7 @@ function main() {
       } = getProjectInfo(targetDir, customName)
 
       const hasDockerCompose = hasDockerComposeFile(targetDir)
+      const hasDockerfileExists = hasDockerfile(targetDir)
 
       const teamocilYaml = generateTeamocilYaml(
         projectName,
@@ -391,6 +397,7 @@ function main() {
         hasTestsWatchScript,
         hasTypesWatchScript,
         hasDockerCompose,
+        hasDockerfileExists,
         hasDbStudioScript,
         targetDir,
       )
