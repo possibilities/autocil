@@ -156,12 +156,12 @@ function hasDockerfile(dir: string): boolean {
 }
 
 function detectPackageManager(dir: string): string {
-  if (fs.existsSync(path.join(dir, 'pnpm-lock.yaml'))) {
-    return 'pnpm'
-  } else if (fs.existsSync(path.join(dir, 'yarn.lock'))) {
+  if (fs.existsSync(path.join(dir, 'yarn.lock'))) {
     return 'yarn'
-  } else {
+  } else if (fs.existsSync(path.join(dir, 'package-lock.json'))) {
     return 'npm'
+  } else {
+    return 'pnpm'
   }
 }
 
