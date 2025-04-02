@@ -155,6 +155,16 @@ function hasDockerfile(dir: string): boolean {
   return fs.existsSync(path.join(dir, 'Dockerfile'))
 }
 
+function detectPackageManager(dir: string): string {
+  if (fs.existsSync(path.join(dir, 'pnpm-lock.yaml'))) {
+    return 'pnpm'
+  } else if (fs.existsSync(path.join(dir, 'yarn.lock'))) {
+    return 'yarn'
+  } else {
+    return 'npm'
+  }
+}
+
 function generateTeamocilYaml(
   projectName: string,
   displayName: string,
@@ -165,6 +175,7 @@ function generateTeamocilYaml(
   hasDockerfile: boolean,
   hasDbStudioScript: boolean,
   dir: string,
+  packageManager: string,
 ): string {
   let yamlContent = `# Teamocil configuration for ${displayName}
 name: ${projectName}
@@ -183,19 +194,19 @@ windows:`
     yamlContent += `
       - commands:
         - sleep 2
-        - pnpm run test:watch`
+        - ${packageManager} run test:watch`
   }
 
   if (hasTypesWatchScript) {
     yamlContent += `
       - commands:
-        - pnpm run types:watch`
+        - ${packageManager} run types:watch`
   }
 
   if (hasDevScript) {
     yamlContent += `
       - commands:
-        - pnpm run dev`
+        - ${packageManager} run dev`
   }
 
   yamlContent += `
@@ -216,7 +227,7 @@ windows:`
     if (hasDbStudioScript) {
       yamlContent += `
       - commands:
-        - pnpm db:studio`
+        - ${packageManager} db:studio`
     }
   }
 
@@ -389,6 +400,7 @@ function main() {
 
       const hasDockerCompose = hasDockerComposeFile(targetDir)
       const hasDockerfileExists = hasDockerfile(targetDir)
+      const packageManager = detectPackageManager(targetDir)
 
       const teamocilYaml = generateTeamocilYaml(
         projectName,
@@ -400,6 +412,7 @@ function main() {
         hasDockerfileExists,
         hasDbStudioScript,
         targetDir,
+        packageManager,
       )
 
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
