@@ -1,90 +1,87 @@
 # autocil
 
-A TypeScript CLI tool that generates a teamocil YAML configuration for opening the current project in a tmux pane with common tasks and scripts automatically run for development
+A CLI tool that automatically generates and runs tmux sessions with teamocil layouts for your development projects.
+
+## Requirements
+
+- tmux
+- teamocil (`gem install teamocil`)
+- Node.js
 
 ## Installation
 
 ```bash
+# Install globally
+pnpm install -g autocil
+
+# Or install from source
+git clone https://github.com/yourusername/autocil.git
+cd autocil
 pnpm install
 pnpm build
 pnpm link --global
 ```
 
+## Features
+
+- Creates tmux sessions with smart layouts based on project structure
+- Automatically detects package manager (npm, yarn, pnpm)
+- Discovers and runs dev, test, and type-checking scripts
+- Sets up Docker Compose services when present
+- Supports multiple projects in a single command
+- Customizable session names and behavior
+
 ## Usage
 
-Run the command in any directory:
-
 ```bash
-autocil [directory1] [directory2] ... [--name session-name] [--no-attach]
+autocil [directory1] [directory2] ... [options]
 ```
 
-Where:
+### Arguments
 
-- `[directory1] [directory2] ...` are optional paths to directories or project names. If provided, autocil will create tmux sessions for each directory. If not provided, it will use the current working directory.
-- `--name session-name` is an optional argument to specify a custom name for the tmux session. If not provided, the name from package.json or the directory name will be used. Note: This option cannot be used with multiple directories.
-- `--no-attach` creates the tmux sessions without automatically attaching to them.
+- `directory1, directory2, ...` - Target directories (defaults to current directory)
+  - When only a name is provided with no path separators, it will look in your configured root directory (default: `~/code`)
 
-Examples:
+### Options
+
+- `--name <session-name>` - Specify a custom session name (single directory only)
+- `--no-attach` - Create sessions without automatically attaching
+- `--help` - Show help message
+
+### Examples
 
 ```bash
-# Use the current directory
-autocil
-
-# Use a specific directory
-autocil /path/to/your/project
-
-# Use a project name in the root directory (defaults to ~/code)
-autocil myproject
-
-# Create sessions for multiple directories
-autocil /path/to/project1 /path/to/project2 /path/to/project3
-
-# Create sessions for multiple projects in the root directory
-autocil project1 project2 project3
-
-# Use a custom session name
-autocil --name my-project
-
-# Use both a specific directory and a custom session name
-autocil /path/to/your/project --name my-project
-
-# Create session without attaching
-autocil --no-attach
+autocil                                 # Use current directory
+autocil ~/projects/myapp                # Use specified directory
+autocil myapp                           # Use project in root directory (~/code/myapp)
+autocil ~/projects/app1 ~/projects/app2 # Create sessions for multiple directories
+autocil app1 app2                       # Create sessions for multiple projects in root directory
+autocil --name my-session               # Use custom session name (single directory only)
+autocil --no-attach                     # Create session without attaching
 ```
-
-This will:
-
-1. Generate a teamocil YAML configuration for each specified project
-2. Detect the appropriate package manager (npm, yarn, or pnpm) based on lock files
-3. Create temporary YAML files
-4. Start new tmux sessions using the generated configurations
-5. Automatically attach to the last created session (unless --no-attach is specified)
-6. Display instructions for attaching to the sessions
-
-By default, the project name (used for the tmux session) is determined from the package.json file if it exists, otherwise it uses the directory name. When the `--name` argument is provided, it overrides this behavior and uses the specified name instead.
-
-When multiple directories are specified, tmux sessions will be created for each one, but you'll only be automatically attached to the last session created.
 
 ## Configuration
 
-You can configure autocil by creating a YAML configuration file at `~/.config/autocil.yaml`.
-
-Current configuration options:
-
-- `root`: The root directory where autocil looks for projects. Default: `~/code`
-
-Example configuration:
+You can customize settings by creating a config file at `~/.config/autocil.yaml`:
 
 ```yaml
-# ~/.config/autocil.yaml
-root: /home/user/projects
+# Define the root directory where autocil looks for projects
+root: /path/to/your/projects  # Default: ~/code
 ```
 
-When using a project name without path separators (e.g., `autocil myproject`), autocil will look for the project in this root directory.
+## How It Works
 
-## What is teamocil?
+Autocil analyzes your project and:
 
-[Teamocil](https://github.com/remi/teamocil) is a tool to set up tmux sessions with predefined window and pane configurations using YAML files.
+1. Detects project structure (package.json, Docker, etc.)
+2. Generates appropriate teamocil YAML configuration
+3. Creates tmux sessions with customized layouts:
+   - Editor (vim) in main pane
+   - Test watcher if `test:watch` script exists
+   - Type checker if `types:watch` script exists
+   - Development server if `dev` script exists
+   - Docker Compose services if docker-compose.yml exists
+   - Database UI if `db:studio` script exists
 
 ## License
 
