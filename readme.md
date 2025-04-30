@@ -5,15 +5,9 @@ A TypeScript CLI tool that generates a teamocil YAML configuration for opening t
 ## Installation
 
 ```bash
-# Clone the repository
-git clone <repository-url>
-cd autocil
-
-# Install dependencies
-npm install
-
-# Install globally
-npm link
+pnpm install
+pnpm build
+pnpm link --global
 ```
 
 ## Usage

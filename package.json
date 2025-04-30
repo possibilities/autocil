@@ -2,8 +2,15 @@
   "name": "autocil",
   "version": "1.0.0",
   "description": "A CLI tool that generates teamocil YAML configurations for tmux sessions",
+  "main": "dist/index.js",
+  "type": "module",
   "bin": {
-    "autocil": "./bin.js"
+    "autocil": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js"
   },
   "keywords": [
     "cli",
@@ -13,20 +20,20 @@
   ],
   "author": "",
   "license": "MIT",
+  "packageManager": "pnpm@10.7.0",
+  "dependencies": {
+    "autocil": "link:",
+    "prettier": "^3.5.3",
+    "yaml": "^2.7.0"
+  },
   "devDependencies": {
     "@types/node": "^20.17.22",
     "@types/yaml": "^1.9.7",
-    "prettier": "^3.5.3",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.3.3",
-    "yaml": "^2.7.0"
+    "typescript": "^5.3.3"
   },
   "pnpm": {
     "overrides": {
       "autocil": "link:"
     }
-  },
-  "dependencies": {
-    "autocil": "link:"
   }
 }
