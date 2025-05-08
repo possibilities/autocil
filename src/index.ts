@@ -88,10 +88,8 @@ function parseArgs(): {
     } else if (args[i] === '--no-attach') {
       noAttach = true
     } else if (!args[i].startsWith('--')) {
-      // Check if the argument is a directory name without path separators
       const isSimpleName = !args[i].includes('/') && !args[i].includes('\\')
 
-      // If it's a simple name, resolve it against the root directory
       let resolvedPath
       if (isSimpleName && config.root) {
         resolvedPath = path.resolve(path.join(config.root, args[i]))
@@ -125,12 +123,10 @@ function parseArgs(): {
     }
   }
 
-  // If no directories specified, use current directory
   if (targetDirs.length === 0) {
     targetDirs.push(process.cwd())
   }
 
-  // Cannot use --name with multiple directories
   if (customName && targetDirs.length > 1) {
     console.error('Error: Cannot use --name with multiple directories')
     console.error('Each tmux session needs a unique name')
@@ -240,7 +236,6 @@ windows:`
 }
 
 function sanitizePackageName(name: string): string {
-  // Replace @ and / with dashes, then remove any leading dash
   return name.replace(/[@/]/g, '-').replace(/^-/, '')
 }
 
@@ -391,7 +386,6 @@ function main() {
       process.exit(3)
     }
 
-    // Process each target directory
     for (const targetDir of targetDirs) {
       const packageJsonPath = path.join(targetDir, 'package.json')
       const {
@@ -435,7 +429,6 @@ function main() {
       console.info(teamocilYaml)
       console.info('------------------------')
 
-      // Only attach to the last session if multiple are created
       const shouldAttach =
         !noAttach && targetDir === targetDirs[targetDirs.length - 1]
       executeTmuxCommand(projectName, tempFilePath, shouldAttach)
