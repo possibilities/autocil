@@ -59,6 +59,10 @@ Examples:
   autocil --name my-session               # Use custom session name (single directory only)
   autocil --no-attach                     # Create session without attaching
 
+Custom Teamocil Configurations:
+  If a file named <project-name>.yaml exists in the target directory, autocil will use
+  that file as the teamocil configuration instead of generating one automatically.
+
 Configuration:
   A config file can be placed at ~/.config/autocil.yaml to customize settings:
   
@@ -89,30 +93,41 @@ function parseArgs(): {
       noAttach = true
     } else if (!args[i].startsWith('--')) {
       const isSimpleName = !args[i].includes('/') && !args[i].includes('\\')
+      const projectName = args[i]
 
       let resolvedPath
       if (isSimpleName && config.root) {
-        resolvedPath = path.resolve(path.join(config.root, args[i]))
+        resolvedPath = path.resolve(path.join(config.root, projectName))
       } else {
-        resolvedPath = path.resolve(args[i])
+        resolvedPath = path.resolve(projectName)
       }
 
-      if (!fs.existsSync(resolvedPath)) {
+      const dirExists = fs.existsSync(resolvedPath)
+      const isDir = dirExists && fs.statSync(resolvedPath).isDirectory()
+
+      const baseName = path.basename(resolvedPath)
+      const configInRoot =
+        isSimpleName && config.root
+          ? fs.existsSync(path.join(config.root, `${baseName}.yaml`))
+          : false
+
+      if (!dirExists && !configInRoot) {
         console.error(`Error: Directory does not exist: ${resolvedPath}`)
         if (isSimpleName && config.root) {
           console.error(
-            `Note: Looked for "${args[i]}" in root directory: ${config.root}`,
+            `Note: Looked for "${projectName}" in root directory: ${config.root}`,
           )
         }
         showHelp()
         process.exit(1)
       }
 
-      if (!fs.statSync(resolvedPath).isDirectory()) {
+      if (dirExists && !isDir && !configInRoot) {
         console.error(`Error: Not a directory: ${resolvedPath}`)
         showHelp()
         process.exit(1)
       }
+
       targetDirs.push(resolvedPath)
     } else if (args[i].startsWith('-')) {
       if (!validOptions.includes(args[i])) {
@@ -151,6 +166,23 @@ function hasDockerComposeFile(dir: string): boolean {
 
 function hasDockerfile(dir: string): boolean {
   return fs.existsSync(path.join(dir, 'Dockerfile'))
+}
+
+function hasTeamocilConfig(dir: string, projectName: string): string | null {
+  const configPath = path.join(dir, `${projectName}.yaml`)
+  if (fs.existsSync(configPath)) {
+    return configPath
+  }
+
+  const config = loadConfig()
+  if (config.root) {
+    const rootConfigPath = path.join(config.root, `${projectName}.yaml`)
+    if (fs.existsSync(rootConfigPath)) {
+      return rootConfigPath
+    }
+  }
+
+  return null
 }
 
 function detectPackageManager(dir: string): string {
@@ -387,47 +419,86 @@ function main() {
     }
 
     for (const targetDir of targetDirs) {
-      const packageJsonPath = path.join(targetDir, 'package.json')
-      const {
-        name: projectName,
-        displayName,
-        hasDevScript,
-        hasTestsWatchScript,
-        hasTypesWatchScript,
-        hasDbStudioScript,
-      } = getProjectInfo(targetDir, customName)
+      const dirExists = fs.existsSync(targetDir)
 
-      const hasDockerCompose = hasDockerComposeFile(targetDir)
-      const hasDockerfileExists = hasDockerfile(targetDir)
-      const packageManager = detectPackageManager(targetDir)
+      const projectBaseName = path.basename(targetDir)
+      let displayName = projectBaseName
+      let projectName = customName || projectBaseName
 
-      const teamocilYaml = generateTeamocilYaml(
-        projectName,
-        displayName,
-        hasDevScript,
-        hasTestsWatchScript,
-        hasTypesWatchScript,
-        hasDockerCompose,
-        hasDockerfileExists,
-        hasDbStudioScript,
-        targetDir,
-        packageManager,
+      const existingConfigPath = hasTeamocilConfig(targetDir, projectName)
+      let tempFilePath: string
+
+      if (existingConfigPath) {
+        console.info(`Found existing teamocil config: ${existingConfigPath}`)
+        tempFilePath = existingConfigPath
+
+        try {
+          const configContent = fs.readFileSync(existingConfigPath, 'utf8')
+          const parsedConfig = YAML.parse(configContent)
+          if (parsedConfig && parsedConfig.name) {
+            projectName = parsedConfig.name
+            displayName = parsedConfig.name
+            console.info(`Using session name from config: ${projectName}`)
+          }
+        } catch (error) {
+          console.warn(
+            `Warning: Could not parse teamocil config: ${error instanceof Error ? error.message : 'unknown error'}`,
+          )
+        }
+      } else if (!dirExists) {
+        console.error(
+          `Error: Directory does not exist and no config file found: ${targetDir}`,
+        )
+        process.exit(1)
+      } else {
+        const packageJsonPath = path.join(targetDir, 'package.json')
+        const {
+          name: projName,
+          displayName: dispName,
+          hasDevScript,
+          hasTestsWatchScript,
+          hasTypesWatchScript,
+          hasDbStudioScript,
+        } = getProjectInfo(targetDir, customName)
+
+        projectName = projName
+        displayName = dispName
+
+        const hasDockerCompose = hasDockerComposeFile(targetDir)
+        const hasDockerfileExists = hasDockerfile(targetDir)
+        const packageManager = detectPackageManager(targetDir)
+
+        const teamocilYaml = generateTeamocilYaml(
+          projectName,
+          displayName,
+          hasDevScript,
+          hasTestsWatchScript,
+          hasTypesWatchScript,
+          hasDockerCompose,
+          hasDockerfileExists,
+          hasDbStudioScript,
+          targetDir,
+          packageManager,
+        )
+
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+        const randomSuffix = Math.floor(Math.random() * 10000)
+        tempFilePath = path.join(
+          os.tmpdir(),
+          `${projectName}_${timestamp}_${randomSuffix}.yml`,
+        )
+
+        fs.writeFileSync(tempFilePath, teamocilYaml)
+
+        console.info('Generated teamocil YAML:')
+        console.info('------------------------')
+        console.info(teamocilYaml)
+        console.info('------------------------')
+      }
+
+      console.info(
+        `Creating tmux session for: ${targetDir}${!dirExists ? ' (using config file only)' : ''}`,
       )
-
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
-      const randomSuffix = Math.floor(Math.random() * 10000)
-      const tempFilePath = path.join(
-        os.tmpdir(),
-        `${projectName}_${timestamp}_${randomSuffix}.yml`,
-      )
-
-      fs.writeFileSync(tempFilePath, teamocilYaml)
-
-      console.info(`Creating tmux session for: ${targetDir}`)
-      console.info('Generated teamocil YAML:')
-      console.info('------------------------')
-      console.info(teamocilYaml)
-      console.info('------------------------')
 
       const shouldAttach =
         !noAttach && targetDir === targetDirs[targetDirs.length - 1]

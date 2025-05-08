@@ -30,6 +30,7 @@ pnpm link --global
 - Sets up Docker Compose services when present
 - Supports multiple projects in a single command
 - Customizable session names and behavior
+- Supports custom teamocil configuration files
 
 ## Usage
 
@@ -73,8 +74,10 @@ root: /path/to/your/projects # Default: ~/code
 
 Autocil analyzes your project and:
 
-1. Detects project structure (package.json, Docker, etc.)
-2. Generates appropriate teamocil YAML configuration
+1. Checks for an existing teamocil configuration file (`<project-name>.yaml`)
+2. If no custom config is found:
+   - Detects project structure (package.json, Docker, etc.)
+   - Generates appropriate teamocil YAML configuration
 3. Creates tmux sessions with customized layouts:
    - Editor (vim) in main pane
    - Test watcher if `test:watch` script exists
@@ -82,6 +85,10 @@ Autocil analyzes your project and:
    - Development server if `dev` script exists
    - Docker Compose services if docker-compose.yml exists
    - Database UI if `db:studio` script exists
+
+## Custom Teamocil Configurations
+
+If you want to create your own teamocil configuration, place a file named `<project-name>.yaml` in the project directory. When you run `autocil <project-name>`, autocil will use your custom configuration instead of generating one.
 
 ## License
 
