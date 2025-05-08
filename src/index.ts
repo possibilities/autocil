@@ -372,11 +372,14 @@ function executeTmuxCommand(
 
 function main() {
   try {
-    if (isInsideTmux()) {
+    if (!noAttach && isInsideTmux()) {
       console.error(
         'Error: This command cannot be run from within a tmux session.',
       )
       console.error('Please exit your current tmux session and try again.')
+      console.error(
+        'Or use the --no-attach option to create sessions without attaching.',
+      )
       showHelp()
       process.exit(2)
     }
