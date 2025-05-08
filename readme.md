@@ -66,7 +66,7 @@ You can customize settings by creating a config file at `~/.config/autocil.yaml`
 
 ```yaml
 # Define the root directory where autocil looks for projects
-root: /path/to/your/projects  # Default: ~/code
+root: /path/to/your/projects # Default: ~/code
 ```
 
 ## How It Works
