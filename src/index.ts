@@ -206,6 +206,7 @@ function generateTeamocilYaml(
   hasDbStudioScript: boolean,
   dir: string,
   packageManager: string,
+  watchScripts: Array<{name: string, script: string}> = [],
 ): string {
   let yamlContent = `# Teamocil configuration for ${displayName}
 name: ${projectName}
@@ -220,6 +221,7 @@ windows:`
       - commands:
         - vim`
 
+  // Add specific script panes for backward compatibility
   if (hasTestsWatchScript) {
     yamlContent += `
       - commands:
@@ -231,6 +233,17 @@ windows:`
     yamlContent += `
       - commands:
         - ${packageManager} run types:watch`
+  }
+
+  // Add all watch scripts that aren't already added
+  const addedScripts = new Set(['test:watch', 'types:watch'])
+  for (const {name} of watchScripts) {
+    if (!addedScripts.has(name)) {
+      yamlContent += `
+      - commands:
+        - ${packageManager} run ${name}`
+      addedScripts.add(name)
+    }
   }
 
   if (hasDevScript) {
@@ -281,6 +294,7 @@ function getProjectInfo(
   hasTestsWatchScript: boolean
   hasTypesWatchScript: boolean
   hasDbStudioScript: boolean
+  watchScripts: Array<{name: string, script: string}>
 } {
   let projectName = customName || path.basename(dir)
   let displayName = projectName
@@ -288,6 +302,7 @@ function getProjectInfo(
   let hasTestsWatchScript = false
   let hasTypesWatchScript = false
   let hasDbStudioScript = false
+  const watchScripts: Array<{name: string, script: string}> = []
 
   const packageJsonPath = path.join(dir, 'package.json')
   if (fs.existsSync(packageJsonPath)) {
@@ -312,6 +327,13 @@ function getProjectInfo(
         if (packageJson.scripts['db:studio']) {
           hasDbStudioScript = true
         }
+
+        // Find all scripts ending with :watch
+        Object.entries(packageJson.scripts).forEach(([name, script]) => {
+          if (name.endsWith(':watch')) {
+            watchScripts.push({name, script: String(script)})
+          }
+        })
       }
     } catch (error) {}
   }
@@ -323,6 +345,7 @@ function getProjectInfo(
     hasTestsWatchScript,
     hasTypesWatchScript,
     hasDbStudioScript,
+    watchScripts,
   }
 }
 
@@ -459,6 +482,7 @@ function main() {
           hasTestsWatchScript,
           hasTypesWatchScript,
           hasDbStudioScript,
+          watchScripts,
         } = getProjectInfo(targetDir, customName)
 
         projectName = projName
@@ -479,6 +503,7 @@ function main() {
           hasDbStudioScript,
           targetDir,
           packageManager,
+          watchScripts,
         )
 
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-')

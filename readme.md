@@ -80,8 +80,7 @@ Autocil analyzes your project and:
    - Generates appropriate teamocil YAML configuration
 3. Creates tmux sessions with customized layouts:
    - Editor (vim) in main pane
-   - Test watcher if `test:watch` script exists
-   - Type checker if `types:watch` script exists
+   - Automatically adds panes for any package scripts ending with `:watch` (e.g., `test:watch`, `types:watch`, `lint:watch`, etc.)
    - Development server if `dev` script exists
    - Docker Compose services if docker-compose.yml exists
    - Database UI if `db:studio` script exists
