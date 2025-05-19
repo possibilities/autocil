@@ -5,6 +5,7 @@ import path from 'path'
 import os from 'os'
 import { execSync, spawnSync } from 'child_process'
 import YAML from 'yaml'
+import TOML from '@iarna/toml'
 
 interface Config {
   root?: string
@@ -195,6 +196,50 @@ function detectPackageManager(dir: string): string {
   }
 }
 
+function parsePyprojectToml(dir: string): {
+  hasDevScript: boolean
+  watchScripts: Array<{ name: string; script: string }>
+} {
+  const pyprojectPath = path.join(dir, 'pyproject.toml')
+  let hasDevScript = false
+  const watchScripts: Array<{ name: string; script: string }> = []
+
+  if (fs.existsSync(pyprojectPath)) {
+    try {
+      const pyprojectContent = fs.readFileSync(pyprojectPath, 'utf8')
+      const pyproject = TOML.parse(pyprojectContent) as any
+
+      if (
+        pyproject.tool &&
+        pyproject.tool.autocil &&
+        pyproject.tool.autocil.scripts
+      ) {
+        const scripts = pyproject.tool.autocil.scripts
+
+        // Check for dev script
+        if (scripts.dev) {
+          hasDevScript = true
+          // Add dev script to watchScripts for consistency
+          watchScripts.push({ name: 'dev', script: String(scripts.dev) })
+        }
+
+        // Find all scripts ending with :watch and the dev script
+        Object.entries(scripts).forEach(([name, script]) => {
+          if (name.endsWith(':watch') && name !== 'dev') {
+            watchScripts.push({ name, script: String(script) })
+          }
+        })
+      }
+    } catch (error) {
+      console.warn(
+        `Warning: Could not parse pyproject.toml: ${error instanceof Error ? error.message : 'unknown error'}`,
+      )
+    }
+  }
+
+  return { hasDevScript, watchScripts }
+}
+
 function generateTeamocilYaml(
   projectName: string,
   displayName: string,
@@ -206,7 +251,8 @@ function generateTeamocilYaml(
   hasDbStudioScript: boolean,
   dir: string,
   packageManager: string,
-  watchScripts: Array<{name: string, script: string}> = [],
+  watchScripts: Array<{ name: string; script: string }> = [],
+  isPythonProject: boolean = false,
 ): string {
   let yamlContent = `# Teamocil configuration for ${displayName}
 name: ${projectName}
@@ -226,31 +272,33 @@ windows:`
     yamlContent += `
       - commands:
         - sleep 2
-        - ${packageManager} run test:watch`
+        - ${isPythonProject ? '' : packageManager + ' run '}test:watch`
   }
 
   if (hasTypesWatchScript) {
     yamlContent += `
       - commands:
-        - ${packageManager} run types:watch`
+        - ${isPythonProject ? '' : packageManager + ' run '}types:watch`
   }
-  
+
   // Add all watch scripts that aren't already added
   const addedScripts = new Set(['test:watch', 'types:watch'])
-  for (const {name} of watchScripts) {
+  for (const { name, script } of watchScripts) {
     if (!addedScripts.has(name)) {
+      // For Python projects, use the script directly
+      // For JS/TS projects, use packageManager run name
+      const scriptCommand = isPythonProject
+        ? script
+        : `${packageManager} run ${name}`
+
       yamlContent += `
       - commands:
-        - ${packageManager} run ${name}`
+        - ${scriptCommand}`
       addedScripts.add(name)
     }
   }
 
-  if (hasDevScript) {
-    yamlContent += `
-      - commands:
-        - ${packageManager} run dev`
-  }
+  // The dev script is now handled in the same way as other scripts in the watchScripts loop
 
   yamlContent += `
       - commands:
@@ -270,7 +318,7 @@ windows:`
     if (hasDbStudioScript) {
       yamlContent += `
       - commands:
-        - ${packageManager} db:studio`
+        - ${isPythonProject ? 'python -m db.studio' : `${packageManager} db:studio`}`
     }
   }
 
@@ -294,7 +342,8 @@ function getProjectInfo(
   hasTestsWatchScript: boolean
   hasTypesWatchScript: boolean
   hasDbStudioScript: boolean
-  watchScripts: Array<{name: string, script: string}>
+  watchScripts: Array<{ name: string; script: string }>
+  isPythonProject: boolean
 } {
   let projectName = customName || path.basename(dir)
   let displayName = projectName
@@ -302,8 +351,32 @@ function getProjectInfo(
   let hasTestsWatchScript = false
   let hasTypesWatchScript = false
   let hasDbStudioScript = false
-  const watchScripts: Array<{name: string, script: string}> = []
+  let isPythonProject = false
+  const watchScripts: Array<{ name: string; script: string }> = []
 
+  // Check for pyproject.toml first
+  const pyprojectPath = path.join(dir, 'pyproject.toml')
+  if (fs.existsSync(pyprojectPath)) {
+    isPythonProject = true
+    try {
+      const { hasDevScript: pyDevScript, watchScripts: pyWatchScripts } =
+        parsePyprojectToml(dir)
+
+      // Add Python scripts to our collection
+      if (pyDevScript) {
+        hasDevScript = true
+      }
+
+      // Add watch scripts from pyproject.toml
+      watchScripts.push(...pyWatchScripts)
+    } catch (error) {
+      console.warn(
+        `Warning: Error processing pyproject.toml: ${error instanceof Error ? error.message : 'unknown error'}`,
+      )
+    }
+  }
+
+  // Also check for package.json (may have both in some projects)
   const packageJsonPath = path.join(dir, 'package.json')
   if (fs.existsSync(packageJsonPath)) {
     try {
@@ -317,6 +390,11 @@ function getProjectInfo(
       if (packageJson.scripts) {
         if (packageJson.scripts.dev) {
           hasDevScript = true
+          // Add dev script to watchScripts for consistency
+          watchScripts.push({
+            name: 'dev',
+            script: String(packageJson.scripts.dev),
+          })
         }
         if (packageJson.scripts['test:watch']) {
           hasTestsWatchScript = true
@@ -327,11 +405,11 @@ function getProjectInfo(
         if (packageJson.scripts['db:studio']) {
           hasDbStudioScript = true
         }
-        
-        // Find all scripts ending with :watch
+
+        // Find all scripts ending with :watch and the dev script
         Object.entries(packageJson.scripts).forEach(([name, script]) => {
-          if (name.endsWith(':watch')) {
-            watchScripts.push({name, script: String(script)})
+          if (name.endsWith(':watch') && name !== 'dev') {
+            watchScripts.push({ name, script: String(script) })
           }
         })
       }
@@ -346,6 +424,7 @@ function getProjectInfo(
     hasTypesWatchScript,
     hasDbStudioScript,
     watchScripts,
+    isPythonProject,
   }
 }
 
@@ -483,6 +562,7 @@ function main() {
           hasTypesWatchScript,
           hasDbStudioScript,
           watchScripts,
+          isPythonProject,
         } = getProjectInfo(targetDir, customName)
 
         projectName = projName
@@ -504,6 +584,7 @@ function main() {
           targetDir,
           packageManager,
           watchScripts,
+          isPythonProject,
         )
 
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-')

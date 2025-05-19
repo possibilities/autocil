@@ -1,0 +1,4 @@
+[tool.autocil.scripts]
+dev = "uv run main.py"
+format = "uvx ruff check --fix . && uvx ruff format ."
+"build:watch" = "echo test"
