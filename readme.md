@@ -8,20 +8,6 @@ A CLI tool that automatically generates and runs tmux sessions with teamocil lay
 - teamocil (`gem install teamocil`)
 - Node.js
 
-## Installation
-
-```bash
-# Install globally
-pnpm install -g autocil
-
-# Or install from source
-git clone https://github.com/yourusername/autocil.git
-cd autocil
-pnpm install
-pnpm build
-pnpm link --global
-```
-
 ## Features
 
 - Creates tmux sessions with smart layouts based on project structure
