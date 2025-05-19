@@ -234,7 +234,7 @@ windows:`
       - commands:
         - ${packageManager} run types:watch`
   }
-
+  
   // Add all watch scripts that aren't already added
   const addedScripts = new Set(['test:watch', 'types:watch'])
   for (const {name} of watchScripts) {
@@ -327,7 +327,7 @@ function getProjectInfo(
         if (packageJson.scripts['db:studio']) {
           hasDbStudioScript = true
         }
-
+        
         // Find all scripts ending with :watch
         Object.entries(packageJson.scripts).forEach(([name, script]) => {
           if (name.endsWith(':watch')) {
