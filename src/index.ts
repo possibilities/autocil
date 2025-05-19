@@ -223,9 +223,9 @@ function parsePyprojectToml(dir: string): {
           watchScripts.push({ name: 'dev', script: String(scripts.dev) })
         }
 
-        // Find all scripts ending with :watch and the dev script
+        // Find all scripts ending with :watch
         Object.entries(scripts).forEach(([name, script]) => {
-          if (name.endsWith(':watch') && name !== 'dev') {
+          if (name.endsWith(':watch')) {
             watchScripts.push({ name, script: String(script) })
           }
         })
@@ -281,10 +281,10 @@ windows:`
         - ${isPythonProject ? '' : packageManager + ' run '}types:watch`
   }
 
-  // Add all watch scripts that aren't already added
-  const addedScripts = new Set(['test:watch', 'types:watch'])
+  // Add all watch scripts that aren't already added, excluding the dev script
+  const addedScripts = new Set(['test:watch', 'types:watch', 'dev'])
   for (const { name, script } of watchScripts) {
-    if (!addedScripts.has(name)) {
+    if (!addedScripts.has(name) && name !== 'dev') {
       // For Python projects, use the script directly
       // For JS/TS projects, use packageManager run name
       const scriptCommand = isPythonProject
@@ -298,7 +298,19 @@ windows:`
     }
   }
 
-  // The dev script is now handled in the same way as other scripts in the watchScripts loop
+  // Add dev script at the end to ensure it runs after all :watch scripts
+  for (const { name, script } of watchScripts) {
+    if (name === 'dev') {
+      const scriptCommand = isPythonProject
+        ? script
+        : `${packageManager} run ${name}`
+
+      yamlContent += `
+      - commands:
+        - ${scriptCommand}`
+      break
+    }
+  }
 
   yamlContent += `
       - commands:
@@ -406,9 +418,9 @@ function getProjectInfo(
           hasDbStudioScript = true
         }
 
-        // Find all scripts ending with :watch and the dev script
+        // Find all scripts ending with :watch
         Object.entries(packageJson.scripts).forEach(([name, script]) => {
-          if (name.endsWith(':watch') && name !== 'dev') {
+          if (name.endsWith(':watch')) {
             watchScripts.push({ name, script: String(script) })
           }
         })
