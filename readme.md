@@ -27,7 +27,8 @@ autocil [directory1] [directory2] ... [options]
 ### Arguments
 
 - `directory1, directory2, ...` - Target directories (defaults to current directory)
-  - When only a name is provided with no path separators, it will look in your configured root directory (default: `~/code`)
+  - Relative paths (not starting with `/`, `~`, or `.`) are resolved against your configured root directory (default: `~/code`)
+  - Paths starting with `.` are resolved relative to the current directory
 
 ### Options
 
@@ -39,9 +40,11 @@ autocil [directory1] [directory2] ... [options]
 
 ```bash
 autocil                                 # Use current directory
-autocil ~/projects/myapp                # Use specified directory
-autocil myapp                           # Use project in root directory (~/code/myapp)
-autocil ~/projects/app1 ~/projects/app2 # Create sessions for multiple directories
+autocil /absolute/path/myapp            # Use absolute path
+autocil ~/projects/myapp                # Use home-relative path
+autocil ./myapp                         # Use ./myapp (relative to current directory)
+autocil myapp                           # Use ~/code/myapp
+autocil foo/bar                          # Use ~/code/foo/bar
 autocil app1 app2                       # Create sessions for multiple projects in root directory
 autocil --name my-session               # Use custom session name (single directory only)
 autocil --no-attach                     # Create session without attaching
@@ -74,6 +77,8 @@ Autocil analyzes your project and:
 ## Custom Teamocil Configurations
 
 If you want to create your own teamocil configuration, place a file named `<project-name>.yaml` in the project directory. When you run `autocil <project-name>`, autocil will use your custom configuration instead of generating one.
+
+For relative paths, autocil also checks for configuration files in your root directory. For example, `autocil foo/bar` will check for both `~/code/foo/bar.yaml` and the `~/code/foo/bar/` directory.
 
 ## License
 

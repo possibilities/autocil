@@ -43,8 +43,8 @@ Creates tmux sessions with teamocil layouts for one or more projects.
 
 Arguments:
   directory1, directory2, ...  Target directories (defaults to current directory if none specified)
-                              When only a name is provided (no path separators), 
-                              it will be resolved against the root directory: ${config.root}
+                              Relative paths (not starting with /, ~, or .) are resolved against 
+                              the root directory: ${config.root}
 
 Options:
   --name <session-name> Specify a custom session name (cannot be used with multiple directories)
@@ -53,9 +53,11 @@ Options:
 
 Examples:
   autocil                                 # Use current directory
-  autocil ~/projects/myapp                # Use specified directory
-  autocil myapp                           # Use project in root directory (${config.root}/myapp)
-  autocil ~/projects/app1 ~/projects/app2 # Create sessions for multiple directories
+  autocil /absolute/path/myapp            # Use absolute path
+  autocil ~/projects/myapp                # Use home-relative path
+  autocil ./myapp                         # Use ./myapp (relative to current directory)
+  autocil myapp                           # Use ${config.root}/myapp
+  autocil foo/bar                          # Use ${config.root}/foo/bar
   autocil app1 app2                       # Create sessions for multiple projects in root directory
   autocil --name my-session               # Use custom session name (single directory only)
   autocil --no-attach                     # Create session without attaching
@@ -63,6 +65,7 @@ Examples:
 Custom Teamocil Configurations:
   If a file named <project-name>.yaml exists in the target directory, autocil will use
   that file as the teamocil configuration instead of generating one automatically.
+  For relative paths, it also checks for <path>.yaml in the root directory (${config.root}).
 
 Configuration:
   A config file can be placed at ~/.config/autocil.yaml to customize settings:
@@ -73,13 +76,13 @@ Configuration:
 }
 
 function parseArgs(): {
-  targetDirs: string[]
+  targetDirs: Array<{ path: string; originalName: string }>
   customName?: string
   noAttach?: boolean
 } {
   const config = loadConfig()
   const args = process.argv.slice(2)
-  const targetDirs: string[] = []
+  const targetDirs: Array<{ path: string; originalName: string }> = []
   let customName: string | undefined
   let noAttach: boolean = false
   const validOptions = ['--help', '--name', '--no-attach']
@@ -93,11 +96,15 @@ function parseArgs(): {
     } else if (args[i] === '--no-attach') {
       noAttach = true
     } else if (!args[i].startsWith('--')) {
-      const isSimpleName = !args[i].includes('/') && !args[i].includes('\\')
       const projectName = args[i]
 
+      // Check if path is absolute (starts with /, ~, or Windows drive letter) or relative to cwd (starts with .)
+      const isAbsolutePath =
+        path.isAbsolute(projectName) || projectName.startsWith('~')
+      const isRelativeToCwd = projectName.startsWith('.')
+
       let resolvedPath
-      if (isSimpleName && config.root) {
+      if (!isAbsolutePath && !isRelativeToCwd && config.root) {
         resolvedPath = path.resolve(path.join(config.root, projectName))
       } else {
         resolvedPath = path.resolve(projectName)
@@ -108,13 +115,13 @@ function parseArgs(): {
 
       const baseName = path.basename(resolvedPath)
       const configInRoot =
-        isSimpleName && config.root
-          ? fs.existsSync(path.join(config.root, `${baseName}.yaml`))
+        !isAbsolutePath && !isRelativeToCwd && config.root
+          ? fs.existsSync(path.join(config.root, `${projectName}.yaml`))
           : false
 
       if (!dirExists && !configInRoot) {
         console.error(`Error: Directory does not exist: ${resolvedPath}`)
-        if (isSimpleName && config.root) {
+        if (!isAbsolutePath && !isRelativeToCwd && config.root) {
           console.error(
             `Note: Looked for "${projectName}" in root directory: ${config.root}`,
           )
@@ -129,7 +136,7 @@ function parseArgs(): {
         process.exit(1)
       }
 
-      targetDirs.push(resolvedPath)
+      targetDirs.push({ path: resolvedPath, originalName: projectName })
     } else if (args[i].startsWith('-')) {
       if (!validOptions.includes(args[i])) {
         console.error(`Error: Unknown option: ${args[i]}`)
@@ -140,7 +147,7 @@ function parseArgs(): {
   }
 
   if (targetDirs.length === 0) {
-    targetDirs.push(process.cwd())
+    targetDirs.push({ path: process.cwd(), originalName: '.' })
   }
 
   if (customName && targetDirs.length > 1) {
@@ -169,7 +176,11 @@ function hasDockerfile(dir: string): boolean {
   return fs.existsSync(path.join(dir, 'Dockerfile'))
 }
 
-function hasTeamocilConfig(dir: string, projectName: string): string | null {
+function hasTeamocilConfig(
+  dir: string,
+  projectName: string,
+  originalRelativeName?: string,
+): string | null {
   const configPath = path.join(dir, `${projectName}.yaml`)
   if (fs.existsSync(configPath)) {
     return configPath
@@ -177,6 +188,18 @@ function hasTeamocilConfig(dir: string, projectName: string): string | null {
 
   const config = loadConfig()
   if (config.root) {
+    // First try with the original relative name if provided
+    if (originalRelativeName && originalRelativeName !== '.') {
+      const rootConfigPath = path.join(
+        config.root,
+        `${originalRelativeName}.yaml`,
+      )
+      if (fs.existsSync(rootConfigPath)) {
+        return rootConfigPath
+      }
+    }
+
+    // Fall back to just the project name
     const rootConfigPath = path.join(config.root, `${projectName}.yaml`)
     if (fs.existsSync(rootConfigPath)) {
       return rootConfigPath
@@ -532,14 +555,19 @@ function main() {
       process.exit(3)
     }
 
-    for (const targetDir of targetDirs) {
+    for (const target of targetDirs) {
+      const targetDir = target.path
       const dirExists = fs.existsSync(targetDir)
 
       const projectBaseName = path.basename(targetDir)
       let displayName = projectBaseName
       let projectName = customName || projectBaseName
 
-      const existingConfigPath = hasTeamocilConfig(targetDir, projectName)
+      const existingConfigPath = hasTeamocilConfig(
+        targetDir,
+        projectName,
+        target.originalName,
+      )
       let tempFilePath: string
 
       if (existingConfigPath) {
@@ -619,7 +647,7 @@ function main() {
       )
 
       const shouldAttach =
-        !noAttach && targetDir === targetDirs[targetDirs.length - 1]
+        !noAttach && targetDir === targetDirs[targetDirs.length - 1].path
       executeTmuxCommand(projectName, tempFilePath, shouldAttach)
     }
   } catch (error) {
