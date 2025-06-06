@@ -67,7 +67,17 @@ Custom Teamocil Configurations:
   that file as the teamocil configuration instead of generating one automatically.
   For relative paths, it also checks for <path>.yaml in the root directory (${config.root}).
 
-Configuration:
+Project-specific Configuration:
+  Place a .autocil.yaml file in your project directory to define custom commands:
+  
+  # .autocil.yaml
+  - npm run dev
+  - npm run test:watch
+  - docker compose up
+  
+  This works for any language or toolchain (Python, Go, Rust, etc.)
+
+Global Configuration:
   A config file can be placed at ~/.config/autocil.yaml to customize settings:
   
   root: /path/to/your/projects  # Default: ~/code
@@ -219,6 +229,34 @@ function detectPackageManager(dir: string): string {
   }
 }
 
+function parseAutocilYaml(dir: string): string[] {
+  const autocilPath = path.join(dir, '.autocil.yaml')
+  const commands: string[] = []
+
+  if (fs.existsSync(autocilPath)) {
+    try {
+      const autocilContent = fs.readFileSync(autocilPath, 'utf8')
+      const parsed = YAML.parse(autocilContent)
+
+      if (Array.isArray(parsed)) {
+        // Simple array format
+        commands.push(...parsed.filter(cmd => typeof cmd === 'string'))
+      } else if (parsed && Array.isArray(parsed.commands)) {
+        // Object with commands array
+        commands.push(
+          ...parsed.commands.filter((cmd: any) => typeof cmd === 'string'),
+        )
+      }
+    } catch (error) {
+      console.warn(
+        `Warning: Could not parse .autocil.yaml: ${error instanceof Error ? error.message : 'unknown error'}`,
+      )
+    }
+  }
+
+  return commands
+}
+
 function parsePyprojectToml(dir: string): {
   hasDevScript: boolean
   watchScripts: Array<{ name: string; script: string }>
@@ -276,6 +314,7 @@ function generateTeamocilYaml(
   packageManager: string,
   watchScripts: Array<{ name: string; script: string }> = [],
   isPythonProject: boolean = false,
+  autocilCommands: string[] = [],
 ): string {
   let yamlContent = `# Teamocil configuration for ${displayName}
 name: ${projectName}
@@ -290,48 +329,58 @@ windows:`
       - commands:
         - vim`
 
-  // Add specific script panes for backward compatibility
-  if (hasTestsWatchScript) {
-    yamlContent += `
+  // If we have .autocil.yaml commands, use those exclusively
+  if (autocilCommands.length > 0) {
+    for (const command of autocilCommands) {
+      yamlContent += `
+      - commands:
+        - ${command}`
+    }
+  } else {
+    // Otherwise, use the existing logic for backward compatibility
+    // Add specific script panes for backward compatibility
+    if (hasTestsWatchScript) {
+      yamlContent += `
       - commands:
         - sleep 2
         - ${isPythonProject ? '' : packageManager + ' run '}test:watch`
-  }
+    }
 
-  if (hasTypesWatchScript) {
-    yamlContent += `
+    if (hasTypesWatchScript) {
+      yamlContent += `
       - commands:
         - ${isPythonProject ? '' : packageManager + ' run '}types:watch`
-  }
-
-  // Add all watch scripts that aren't already added, excluding the dev script
-  const addedScripts = new Set(['test:watch', 'types:watch', 'dev'])
-  for (const { name, script } of watchScripts) {
-    if (!addedScripts.has(name) && name !== 'dev') {
-      // For Python projects, use the script directly
-      // For JS/TS projects, use packageManager run name
-      const scriptCommand = isPythonProject
-        ? script
-        : `${packageManager} run ${name}`
-
-      yamlContent += `
-      - commands:
-        - ${scriptCommand}`
-      addedScripts.add(name)
     }
-  }
 
-  // Add dev script at the end to ensure it runs after all :watch scripts
-  for (const { name, script } of watchScripts) {
-    if (name === 'dev') {
-      const scriptCommand = isPythonProject
-        ? script
-        : `${packageManager} run ${name}`
+    // Add all watch scripts that aren't already added, excluding the dev script
+    const addedScripts = new Set(['test:watch', 'types:watch', 'dev'])
+    for (const { name, script } of watchScripts) {
+      if (!addedScripts.has(name) && name !== 'dev') {
+        // For Python projects, use the script directly
+        // For JS/TS projects, use packageManager run name
+        const scriptCommand = isPythonProject
+          ? script
+          : `${packageManager} run ${name}`
 
-      yamlContent += `
+        yamlContent += `
       - commands:
         - ${scriptCommand}`
-      break
+        addedScripts.add(name)
+      }
+    }
+
+    // Add dev script at the end to ensure it runs after all :watch scripts
+    for (const { name, script } of watchScripts) {
+      if (name === 'dev') {
+        const scriptCommand = isPythonProject
+          ? script
+          : `${packageManager} run ${name}`
+
+        yamlContent += `
+      - commands:
+        - ${scriptCommand}`
+        break
+      }
     }
   }
 
@@ -611,6 +660,7 @@ function main() {
         const hasDockerCompose = hasDockerComposeFile(targetDir)
         const hasDockerfileExists = hasDockerfile(targetDir)
         const packageManager = detectPackageManager(targetDir)
+        const autocilCommands = parseAutocilYaml(targetDir)
 
         const teamocilYaml = generateTeamocilYaml(
           projectName,
@@ -625,6 +675,7 @@ function main() {
           packageManager,
           watchScripts,
           isPythonProject,
+          autocilCommands,
         )
 
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
