@@ -325,9 +325,7 @@ windows:`
     focus: true
     root: ${dir}
     layout: main-vertical
-    panes:
-      - commands:
-        - vim`
+    panes:`
 
   // If we have .autocil.yaml commands, use those exclusively
   if (autocilCommands.length > 0) {
@@ -338,6 +336,11 @@ windows:`
     }
   } else {
     // Otherwise, use the existing logic for backward compatibility
+    // Start with vim as the first pane
+    yamlContent += `
+      - commands:
+        - vim`
+
     // Add specific script panes for backward compatibility
     if (hasTestsWatchScript) {
       yamlContent += `
@@ -382,13 +385,14 @@ windows:`
         break
       }
     }
-  }
 
-  yamlContent += `
+    // Add tree --gitignore command only when not using custom commands
+    yamlContent += `
       - commands:
         - sleep 1
         - tree --gitignore
         focus: true`
+  }
 
   if (hasDockerCompose) {
     yamlContent += `
