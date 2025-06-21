@@ -329,10 +329,16 @@ windows:`
 
   // If we have .autocil.yaml commands, use those exclusively
   if (autocilCommands.length > 0) {
-    for (const command of autocilCommands) {
+    for (let i = 0; i < autocilCommands.length; i++) {
+      const command = autocilCommands[i]
+      const isLastCommand = i === autocilCommands.length - 1
       yamlContent += `
       - commands:
         - ${command}`
+      if (isLastCommand) {
+        yamlContent += `
+        focus: true`
+      }
     }
   } else {
     // Otherwise, use the existing logic for backward compatibility
