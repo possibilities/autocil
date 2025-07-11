@@ -422,6 +422,60 @@ windows:`
   return yamlContent
 }
 
+function processTeamocilYaml(yamlContent: string): string {
+  try {
+    const config = YAML.parse(yamlContent)
+
+    if (!config || !config.windows || !Array.isArray(config.windows)) {
+      return yamlContent
+    }
+
+    const hasWindowFocus = config.windows.some(
+      (window: any) => window.focus === true,
+    )
+
+    if (!hasWindowFocus && config.windows.length > 0) {
+      config.windows[0].focus = true
+    }
+
+    config.windows.forEach((window: any) => {
+      if (
+        window.panes &&
+        Array.isArray(window.panes) &&
+        window.panes.length > 0
+      ) {
+        const hasPaneFocus = window.panes.some((pane: any) => {
+          if (typeof pane === 'string') {
+            return false
+          }
+          return pane.focus === true
+        })
+
+        if (!hasPaneFocus) {
+          const lastPaneIndex = window.panes.length - 1
+          const lastPane = window.panes[lastPaneIndex]
+
+          if (typeof lastPane === 'string') {
+            window.panes[lastPaneIndex] = {
+              commands: [lastPane],
+              focus: true,
+            }
+          } else {
+            lastPane.focus = true
+          }
+        }
+      }
+    })
+
+    return YAML.stringify(config)
+  } catch (error) {
+    console.warn(
+      `Warning: Could not process teamocil YAML for focus: ${error instanceof Error ? error.message : 'unknown error'}`,
+    )
+    return yamlContent
+  }
+}
+
 function sanitizePackageName(name: string): string {
   return name.replace(/[@/]/g, '-').replace(/^-/, '')
 }
@@ -631,7 +685,6 @@ function main() {
 
       if (existingConfigPath) {
         console.info(`Found existing teamocil config: ${existingConfigPath}`)
-        tempFilePath = existingConfigPath
 
         try {
           const configContent = fs.readFileSync(existingConfigPath, 'utf8')
@@ -641,10 +694,23 @@ function main() {
             displayName = parsedConfig.name
             console.info(`Using session name from config: ${projectName}`)
           }
+
+          const processedYaml = processTeamocilYaml(configContent)
+
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+          const randomSuffix = Math.floor(Math.random() * 10000)
+          tempFilePath = path.join(
+            os.tmpdir(),
+            `${projectName}_processed_${timestamp}_${randomSuffix}.yml`,
+          )
+
+          fs.writeFileSync(tempFilePath, processedYaml)
+          console.info('Processed teamocil config for proper focus handling')
         } catch (error) {
           console.warn(
             `Warning: Could not parse teamocil config: ${error instanceof Error ? error.message : 'unknown error'}`,
           )
+          tempFilePath = existingConfigPath
         }
       } else if (!dirExists) {
         console.error(
