@@ -49,6 +49,7 @@ Arguments:
 Options:
   --name <session-name> Specify a custom session name (cannot be used with multiple directories)
   --no-attach           Create the tmux sessions but don't automatically attach to them
+  -L <socket>           Use a specific tmux server socket
   --help                Show this help message
 
 Examples:
@@ -61,6 +62,7 @@ Examples:
   autocil app1 app2                       # Create sessions for multiple projects in root directory
   autocil --name my-session               # Use custom session name (single directory only)
   autocil --no-attach                     # Create session without attaching
+  autocil -L mysocket myapp               # Use custom tmux socket
 
 Custom Teamocil Configurations:
   If a file named <project-name>.yaml exists in the target directory, autocil will use
@@ -89,13 +91,15 @@ function parseArgs(): {
   targetDirs: Array<{ path: string; originalName: string }>
   customName?: string
   noAttach?: boolean
+  socketName?: string
 } {
   const config = loadConfig()
   const args = process.argv.slice(2)
   const targetDirs: Array<{ path: string; originalName: string }> = []
   let customName: string | undefined
   let noAttach: boolean = false
-  const validOptions = ['--help', '--name', '--no-attach']
+  let socketName: string | undefined
+  const validOptions = ['--help', '--name', '--no-attach', '-L']
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--help') {
@@ -105,6 +109,9 @@ function parseArgs(): {
       i++
     } else if (args[i] === '--no-attach') {
       noAttach = true
+    } else if (args[i] === '-L' && i + 1 < args.length) {
+      socketName = args[i + 1]
+      i++
     } else if (!args[i].startsWith('--')) {
       const projectName = args[i]
 
@@ -167,10 +174,10 @@ function parseArgs(): {
     process.exit(1)
   }
 
-  return { targetDirs, customName, noAttach }
+  return { targetDirs, customName, noAttach, socketName }
 }
 
-const { targetDirs, customName, noAttach } = parseArgs()
+const { targetDirs, customName, noAttach, socketName } = parseArgs()
 
 function hasDockerComposeFile(dir: string): boolean {
   const possibleFiles = [
@@ -593,19 +600,24 @@ function executeTmuxCommand(
   projectName: string,
   tempFilePath: string,
   autoAttach: boolean = false,
+  socketName?: string,
 ): void {
   try {
     try {
-      execSync(`tmux kill-session -t ${projectName}`, { stdio: 'ignore' })
+      const socketFlag = socketName ? `-L ${socketName} ` : ''
+      execSync(`tmux ${socketFlag}kill-session -t ${projectName}`, {
+        stdio: 'ignore',
+      })
       console.info(`Killed existing tmux session: ${projectName}`)
     } catch (error) {}
 
     console.info(`Starting new tmux session: ${projectName}`)
     console.info(`Using teamocil layout: ${tempFilePath}`)
 
+    const socketArgs = socketName ? ['-L', socketName] : []
     const result = spawnSync(
       'tmux',
-      ['new-session', '-d', `teamocil --layout ${tempFilePath}`],
+      [...socketArgs, 'new-session', '-d', `teamocil --layout ${tempFilePath}`],
       {
         stdio: 'inherit',
         shell: true,
@@ -624,7 +636,8 @@ function executeTmuxCommand(
       console.info(`Attaching to tmux session "${projectName}"...`)
       setTimeout(() => {
         try {
-          execSync(`tmux attach-session -t ${projectName}`, {
+          const socketFlag = socketName ? `-L ${socketName} ` : ''
+          execSync(`tmux ${socketFlag}attach-session -t ${projectName}`, {
             stdio: 'inherit',
           })
         } catch (error) {
@@ -634,8 +647,9 @@ function executeTmuxCommand(
         }
       }, 500)
     } else {
+      const socketFlag = socketName ? `-L ${socketName} ` : ''
       console.info(
-        `To attach to this session, run: tmux attach-session -t ${projectName}`,
+        `To attach to this session, run: tmux ${socketFlag}attach-session -t ${projectName}`,
       )
     }
   } catch (error) {
@@ -775,7 +789,7 @@ function main() {
 
       const shouldAttach =
         !noAttach && targetDir === targetDirs[targetDirs.length - 1].path
-      executeTmuxCommand(projectName, tempFilePath, shouldAttach)
+      executeTmuxCommand(projectName, tempFilePath, shouldAttach, socketName)
     }
   } catch (error) {
     if (error instanceof Error) {
