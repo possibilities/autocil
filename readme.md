@@ -2,4 +2,10 @@
 
 A CLI tool that automatically generates and runs tmux sessions with teamocil layouts
 
-NOTE THE CODE IN THIS REPO COULD BE VERY CRAPPY, I'VE NEVER READ IT, BUT I DRIVE IT DAILY. ONE DAY I WILL FIX, PLEASE DON'T JUDGE ME IN THE MEANTIME <3
+## Disclaimer
+
+Welcome to this repo. This is part of a larger project. A project of possibilities. A unix-philosphy-shaped "personal infrastructure". This project might be a critical part of an important system but is more likely a temporarily useful toy or experiment.
+
+This page is left intentally (mostly) blank.
+
+If this repo seems interesting to you be in touch and we'll find a way foward.
